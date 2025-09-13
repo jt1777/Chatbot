@@ -164,9 +164,9 @@ export class DocumentService {
 
   async getDocumentStats(): Promise<{ count: number; types: Record<string, number> }> {
     try {
-      // This is a simplified version - in a real implementation,
-      // you'd query MongoDB to get detailed statistics
+      console.log('🔍 Getting document stats...');
       const count = await this.ragService.getDocumentCount();
+      console.log('📊 Document count from MongoDB:', count);
       
       return {
         count,
@@ -177,7 +177,7 @@ export class DocumentService {
         }
       };
     } catch (error) {
-      console.error('Error getting document stats:', error);
+      console.error('❌ Error getting document stats:', error);
       throw error;
     }
   }

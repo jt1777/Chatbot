@@ -42,6 +42,10 @@ export default function App() {
       const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: userMessage.text,
         userId: 'web-user',
+      }, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
       });
 
       const botMessage: Message = {
@@ -68,7 +72,11 @@ export default function App() {
   const loadDocumentStats = async () => {
     try {
       console.log('🔍 Loading document stats from:', API_ENDPOINTS.DOCUMENTS_STATS);
-      const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS);
+      const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
       console.log('📊 Stats response:', response.data);
       setDocumentStats(response.data);
     } catch (error) {
@@ -86,6 +94,10 @@ export default function App() {
       setIsLoading(true);
       const response = await axios.post(API_ENDPOINTS.DOCUMENTS_SCRAPE, {
         url: websiteUrl.trim()
+      }, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
       });
       
       Alert.alert('Success', `Website scraped successfully! Created ${response.data.chunksCreated} chunks.`);
@@ -111,7 +123,11 @@ export default function App() {
           onPress: async () => {
             try {
               setIsLoading(true);
-              await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR);
+              await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
+                headers: {
+                  'ngrok-skip-browser-warning': 'true'
+                }
+              });
               Alert.alert('Success', 'All documents cleared successfully');
               await loadDocumentStats();
             } catch (error: any) {
@@ -162,6 +178,9 @@ export default function App() {
       const response = await fetch(API_ENDPOINTS.DOCUMENTS_UPLOAD, {
         method: 'POST',
         body: formData,
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
       });
 
       if (!response.ok) {
