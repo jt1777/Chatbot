@@ -67,10 +67,12 @@ export default function App() {
 
   const loadDocumentStats = async () => {
     try {
+      console.log('🔍 Loading document stats from:', API_ENDPOINTS.DOCUMENTS_STATS);
       const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS);
+      console.log('📊 Stats response:', response.data);
       setDocumentStats(response.data);
     } catch (error) {
-      console.error('Error loading document stats:', error);
+      console.error('❌ Error loading document stats:', error);
     }
   };
 
