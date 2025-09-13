@@ -28,9 +28,15 @@ export class RAGService {
 
       this.vectorStore = new MongoDBAtlasVectorSearch(this.embeddings, {
         collection: collection,
+        indexName: 'vector_index', // Specify the index name
+        textKey: 'text', // Field containing the text
+        embeddingKey: 'embedding', // Field containing the embeddings
       });
 
       console.log('RAG Service initialized successfully');
+      console.log('🔧 MongoDB collection:', collection.collectionName);
+      console.log('🔧 Vector index name: vector_index');
+      console.log('🔧 Embedding field: embedding');
     } catch (error) {
       console.error('Failed to initialize RAG Service:', error);
       throw error;
@@ -43,7 +49,16 @@ export class RAGService {
     }
 
     try {
+      console.log('🔍 Vector search: Querying for:', query);
+      console.log('🔍 Vector search: Limit:', limit);
+      
       const results = await this.vectorStore.similaritySearch(query, limit);
+      console.log('📊 Vector search: Raw results count:', results.length);
+      
+      if (results.length > 0 && results[0]) {
+        console.log('📄 Vector search: First result preview:', results[0].pageContent.substring(0, 100) + '...');
+      }
+      
       return results.map(doc => ({
         pageContent: doc.pageContent,
         metadata: {
@@ -53,7 +68,7 @@ export class RAGService {
         }
       }));
     } catch (error) {
-      console.error('Error searching similar documents:', error);
+      console.error('❌ Vector search error:', error);
       throw error;
     }
   }
@@ -79,7 +94,18 @@ export class RAGService {
 
     try {
       const db = this.client.db();
-      const count = await db.collection('business_docs').countDocuments();
+      const collection = db.collection('business_docs');
+      const count = await collection.countDocuments();
+      
+      // Debug: Check document structure
+      const sampleDoc = await collection.findOne({});
+      if (sampleDoc) {
+        console.log('🔍 Sample document fields:', Object.keys(sampleDoc));
+        console.log('🔍 Has embedding field:', 'embedding' in sampleDoc);
+        console.log('🔍 Has text field:', 'text' in sampleDoc);
+        console.log('🔍 Has pageContent field:', 'pageContent' in sampleDoc);
+      }
+      
       return count;
     } catch (error) {
       console.error('Error getting document count:', error);

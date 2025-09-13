@@ -62,8 +62,13 @@ app.post('/api/chat', async (req, res) => {
     // If RAG is enabled, search for relevant documents
     if (useRAG) {
       try {
+        console.log('🔍 RAG: Searching for documents related to:', message);
         const relevantDocs = await ragService.searchSimilarDocuments(message, 3);
+        console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
+        
         if (relevantDocs.length > 0) {
+          console.log('📋 RAG: Document sources:', relevantDocs.map(doc => doc.metadata.source));
+          
           const context = relevantDocs
             .map(doc => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`)
             .join('\n\n---\n\n');
@@ -79,9 +84,12 @@ Instructions:
 - If the context doesn't help, provide general assistance`;
 
           sources = relevantDocs.map(doc => doc.metadata.source);
+          console.log('✅ RAG: Using context from', sources.length, 'sources');
+        } else {
+          console.log('❌ RAG: No relevant documents found for query');
         }
       } catch (ragError) {
-        console.error('RAG search error:', ragError);
+        console.error('❌ RAG search error:', ragError);
         // Continue without RAG if there's an error
       }
     }
@@ -288,7 +296,11 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('SIGINT', () => {
   console.log('Received SIGINT, shutting down gracefully');
   server.close(() => {
-    process.exit(0);
+    console.log('Server closed');
+    // Force exit to avoid native module cleanup issues
+    setTimeout(() => {
+      process.exit(0);
+    }, 100);
   });
 });
 
