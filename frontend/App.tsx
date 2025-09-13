@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import axios from 'axios';
+import { API_ENDPOINTS } from './src/config/api';
 
 interface Message {
   text: string;
@@ -37,7 +38,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:3002/api/chat', {
+      const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: userMessage.text,
         userId: 'web-user',
       });
@@ -65,7 +66,7 @@ export default function App() {
 
   const loadDocumentStats = async () => {
     try {
-      const response = await axios.get('http://localhost:3002/api/documents/stats');
+      const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS);
       setDocumentStats(response.data);
     } catch (error) {
       console.error('Error loading document stats:', error);
@@ -80,7 +81,7 @@ export default function App() {
 
     try {
       setIsLoading(true);
-      const response = await axios.post('http://localhost:3002/api/documents/scrape', {
+      const response = await axios.post(API_ENDPOINTS.DOCUMENTS_SCRAPE, {
         url: websiteUrl.trim()
       });
       
@@ -107,7 +108,7 @@ export default function App() {
           onPress: async () => {
             try {
               setIsLoading(true);
-              await axios.delete('http://localhost:3002/api/documents/clear');
+              await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR);
               Alert.alert('Success', 'All documents cleared successfully');
               await loadDocumentStats();
             } catch (error: any) {
