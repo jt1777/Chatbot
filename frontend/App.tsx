@@ -23,6 +23,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<'chat' | 'documents'>('chat');
   const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, types: {} });
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -121,6 +122,66 @@ export default function App() {
         }
       ]
     );
+  };
+
+  const handleFileSelect = (event: any) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check file type
+      const validTypes = ['application/pdf', 'text/plain'];
+      if (!validTypes.includes(file.type)) {
+        Alert.alert('Error', 'Please select a PDF or text file');
+        return;
+      }
+      
+      // Check file size (10MB limit)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        Alert.alert('Error', 'File size must be less than 10MB');
+        return;
+      }
+      
+      setSelectedFile(file);
+    }
+  };
+
+  const uploadFile = async () => {
+    if (!selectedFile) {
+      Alert.alert('Error', 'Please select a file first');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch(API_ENDPOINTS.DOCUMENTS_UPLOAD, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.details || 'Upload failed');
+      }
+
+      const result = await response.json();
+      Alert.alert('Success', `File uploaded successfully! Created ${result.chunksCreated} chunks.`);
+      setSelectedFile(null);
+      
+      // Reset file input
+      const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      
+      await loadDocumentStats();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Error', error.message || 'Failed to upload file');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Load document stats when switching to documents tab
@@ -266,10 +327,48 @@ export default function App() {
             </TouchableOpacity>
           </View>
 
-          {/* File Upload Note */}
-          <View style={{ backgroundColor: '#FEF3C7', padding: 16, borderRadius: 8, marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, color: '#92400E' }}>
-              📱 Note: File upload is not available in the web version. Use the mobile app or add documents via website scraping.
+          {/* File Upload */}
+          <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Document</Text>
+            
+            <input
+              id="fileInput"
+              type="file"
+              accept=".pdf,.txt"
+              onChange={handleFileSelect}
+              style={{
+                marginBottom: 12,
+                padding: 8,
+                border: '1px solid #D1D5DB',
+                borderRadius: 4,
+                width: '100%'
+              }}
+              disabled={isLoading}
+            />
+            
+            {selectedFile && (
+              <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12 }}>
+                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+              </Text>
+            )}
+            
+            <TouchableOpacity
+              style={{
+                backgroundColor: selectedFile && !isLoading ? '#8B5CF6' : '#D1D5DB',
+                padding: 12,
+                borderRadius: 8,
+                alignItems: 'center',
+              }}
+              onPress={uploadFile}
+              disabled={!selectedFile || isLoading}
+            >
+              <Text style={{ color: selectedFile && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
+                {isLoading ? 'Uploading...' : 'Upload & Process'}
+              </Text>
+            </TouchableOpacity>
+            
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
+              Supports PDF and text files (max 10MB)
             </Text>
           </View>
 
