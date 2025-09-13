@@ -24,6 +24,7 @@ export default function App() {
   const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, types: {} });
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [strictMode, setStrictMode] = useState<boolean>(true);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -42,6 +43,7 @@ export default function App() {
       const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: userMessage.text,
         userId: 'web-user',
+        useRAG: strictMode,
       }, {
         headers: {
           'ngrok-skip-browser-warning': 'true'
@@ -416,13 +418,43 @@ export default function App() {
 
       {/* Input - Only show on chat tab */}
       {currentTab === 'chat' && (
-        <View style={{ 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          padding: 16, 
-          borderTopWidth: 1, 
-          borderTopColor: '#E5E7EB' 
-        }}>
+        <>
+          {/* Strict Mode Toggle */}
+          <View style={{ 
+            flexDirection: 'row', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            paddingHorizontal: 16, 
+            paddingVertical: 8, 
+            backgroundColor: '#F9FAFB',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E7EB'
+          }}>
+            <Text style={{ fontSize: 14, color: '#6B7280' }}>
+              {strictMode ? '🔒 Strict Mode: Only knowledge base' : '🌐 General Mode: AI + knowledge base'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setStrictMode(!strictMode)}
+              style={{
+                backgroundColor: strictMode ? '#10B981' : '#6B7280',
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 4
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+                {strictMode ? 'STRICT' : 'GENERAL'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            padding: 16, 
+            borderTopWidth: 1, 
+            borderTopColor: '#E5E7EB' 
+          }}>
           <TextInput
             style={{
               flex: 1,
@@ -453,6 +485,7 @@ export default function App() {
             </Text>
           </TouchableOpacity>
         </View>
+        </>
       )}
       
       <StatusBar style="auto" />

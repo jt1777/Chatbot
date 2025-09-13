@@ -73,24 +73,36 @@ app.post('/api/chat', async (req, res) => {
             .map(doc => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`)
             .join('\n\n---\n\n');
           
-          systemContent = `You are a helpful AI assistant with access to a knowledge base. Use the following context to answer questions when relevant, but also use your general knowledge. If the context doesn't contain relevant information, say so and provide a helpful general response.
+          systemContent = `You are a helpful AI assistant that ONLY answers questions based on the provided context. You must follow these rules strictly:
 
-Context:
+1. ONLY use information from the context below to answer questions
+2. If the context doesn't contain relevant information to answer the question, respond with: "I don't have information about that in my knowledge base. Please ask about topics covered in the uploaded documents."
+3. Do NOT use your general knowledge or pre-training data
+4. Always cite which document the information comes from
+5. Be helpful but stay strictly within the provided context
+
+Context from uploaded documents:
 ${context}
 
-Instructions:
-- Cite sources when using information from the context
-- Be conversational and friendly
-- If the context doesn't help, provide general assistance`;
+Answer the user's question using ONLY the information provided above.`;
 
           sources = relevantDocs.map(doc => doc.metadata.source);
           console.log('✅ RAG: Using context from', sources.length, 'sources');
         } else {
           console.log('❌ RAG: No relevant documents found for query');
+          // Return early with a clear message when no documents are found
+          return res.json({
+            message: "I don't have information about that in my knowledge base. Please ask about topics covered in the uploaded documents, or try rephrasing your question.",
+            sources: []
+          });
         }
       } catch (ragError) {
         console.error('❌ RAG search error:', ragError);
-        // Continue without RAG if there's an error
+        // Return error message instead of continuing without RAG
+        return res.json({
+          message: "I'm having trouble accessing my knowledge base right now. Please try again later.",
+          sources: []
+        });
       }
     }
 
@@ -293,15 +305,18 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled rejection at:', promise, 'reason:', reason);
 });
 
-process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully');
+// Handle multiple shutdown signals
+const gracefulShutdown = (signal: string) => {
+  console.log(`Received ${signal}, shutting down gracefully`);
   server.close(() => {
     console.log('Server closed');
-    // Force exit to avoid native module cleanup issues
-    setTimeout(() => {
-      process.exit(0);
-    }, 100);
   });
-});
+  // Force exit immediately to avoid native module cleanup issues
+  process.exit(0);
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon restart
 
 console.log('Script execution completed');
