@@ -3,43 +3,128 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
 
 # Environment variables
 .env
-.env.local
+.env*.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Data directories - contains user files and processed content
+datapipeline/data/raw/
+datapipeline/data/processed/
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+out
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# React Native
+*.orig.*
+web-build/
 
 # Expo
 .expo/
 .expo-shared/
 
-# Metro bundler
-.metro/
+# Metro
+.metro-health-check*
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Flipper
+# https://fbflipper.com/docs/setup/
+Flipper/
+flipper-server-core.crt
+flipper-server-core.key
+flipper-server-core.csr
 
-# OS
-.DS_Store
-Thumbs.db
+# Bundle artifacts
+*.jsbundle
 
-# Logs
-logs/
-*.log
-
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
-
-# Temporary files
-*.tmp
-*.temp
-
-# API keys and secrets
-.env.*
+# CocoaPods
+/ios/Pods/
