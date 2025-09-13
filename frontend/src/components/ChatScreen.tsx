@@ -40,7 +40,7 @@ const ChatScreen: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/chat', {
+      const response = await axios.post('http://localhost:3002/api/chat', {
         message: userMessage.text,
         userId: 'mobile-user', // For conversation persistence
       });
@@ -70,24 +70,31 @@ const ChatScreen: React.FC = () => {
 
   const renderMessage = ({ item }: { item: Message }) => (
     <View
-      className={`max-w-xs mx-4 my-2 p-3 rounded-lg ${
-        item.from === 'user'
-          ? 'bg-blue-500 self-end ml-auto'
-          : 'bg-gray-200 self-start mr-auto'
-      }`}
+      style={{
+        maxWidth: 280,
+        marginHorizontal: 16,
+        marginVertical: 8,
+        padding: 12,
+        borderRadius: 8,
+        backgroundColor: item.from === 'user' ? '#3B82F6' : '#E5E7EB',
+        alignSelf: item.from === 'user' ? 'flex-end' : 'flex-start',
+      }}
     >
       <Text
-        className={`text-sm ${
-          item.from === 'user' ? 'text-white' : 'text-black'
-        }`}
+        style={{
+          fontSize: 14,
+          color: item.from === 'user' ? 'white' : 'black',
+        }}
       >
         {item.text}
       </Text>
       {item.timestamp && (
         <Text
-          className={`text-xs mt-1 ${
-            item.from === 'user' ? 'text-blue-100' : 'text-gray-500'
-          }`}
+          style={{
+            fontSize: 12,
+            marginTop: 4,
+            color: item.from === 'user' ? '#DBEAFE' : '#6B7280',
+          }}
         >
           {item.timestamp.toLocaleTimeString([], {
             hour: '2-digit',
@@ -99,14 +106,14 @@ const ChatScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={{ flex: 1 }}
       >
-        <View className="flex-1">
-          <View className="bg-blue-500 p-4">
-            <Text className="text-white text-lg font-bold text-center">
+        <View style={{ flex: 1 }}>
+          <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
+            <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
               AI Chatbot
             </Text>
           </View>
@@ -116,21 +123,29 @@ const ChatScreen: React.FC = () => {
             data={messages}
             renderItem={renderMessage}
             keyExtractor={(item, index) => index.toString()}
-            className="flex-1 p-2"
+            style={{ flex: 1, padding: 8 }}
             onContentSizeChange={scrollToEnd}
             onLayout={scrollToEnd}
           />
 
           {isLoading && (
-            <View className="flex-row items-center justify-center p-2">
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
               <ActivityIndicator size="small" color="#3B82F6" />
-              <Text className="ml-2 text-gray-500">AI is thinking...</Text>
+              <Text style={{ marginLeft: 8, color: '#6B7280' }}>AI is thinking...</Text>
             </View>
           )}
 
-          <View className="flex-row items-center p-4 border-t border-gray-200">
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
             <TextInput
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 mr-2"
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: '#D1D5DB',
+                borderRadius: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                marginRight: 8,
+              }}
               placeholder="Type your message..."
               value={input}
               onChangeText={setInput}
@@ -138,11 +153,11 @@ const ChatScreen: React.FC = () => {
               editable={!isLoading}
             />
             <TouchableOpacity
-              className={`p-2 rounded-lg ${
-                input.trim() && !isLoading
-                  ? 'bg-blue-500'
-                  : 'bg-gray-300'
-              }`}
+              style={{
+                padding: 8,
+                borderRadius: 8,
+                backgroundColor: input.trim() && !isLoading ? '#3B82F6' : '#D1D5DB',
+              }}
               onPress={sendMessage}
               disabled={!input.trim() || isLoading}
             >
