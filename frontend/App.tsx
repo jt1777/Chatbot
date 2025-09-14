@@ -37,7 +37,34 @@ export default function App() {
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [websiteUrls, setWebsiteUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState<string>('');
   const [strictMode, setStrictMode] = useState<boolean>(true);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage] = useState<number>(5);
+
+  // Pagination helpers
+  const totalPages = Math.ceil(documentStats.documents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedDocuments = documentStats.documents.slice(startIndex, endIndex);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -94,33 +121,53 @@ export default function App() {
       });
       //console.log('📊 Stats response:', response.data);
       setDocumentStats(response.data);
+      setCurrentPage(1); // Reset to first page when loading new stats
     } catch (error) {
       console.error('❌ Error loading document stats:', error);
     }
   };
 
-  const scrapeWebsite = async () => {
-    if (!websiteUrl.trim()) {
-      Alert.alert('Error', 'Please enter a website URL');
+  const scrapeWebsites = async () => {
+    if (websiteUrls.length === 0) {
+      window.alert('Please add website URLs first');
       return;
     }
 
     try {
       setIsLoading(true);
-      const response = await axios.post(API_ENDPOINTS.DOCUMENTS_SCRAPE, {
-        url: websiteUrl.trim()
-      }, {
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
+      let totalChunks = 0;
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (const url of websiteUrls) {
+        try {
+          const response = await axios.post(API_ENDPOINTS.DOCUMENTS_SCRAPE, {
+            url: url
+          }, {
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
+          
+          totalChunks += response.data.chunksCreated;
+          successCount++;
+        } catch (error: any) {
+          errors.push(`${url}: ${error.response?.data?.details || 'Failed to scrape'}`);
         }
-      });
-      
-      Alert.alert('Success', `Website scraped successfully! Created ${response.data.chunksCreated} chunks.`);
-      setWebsiteUrl('');
-      await loadDocumentStats();
+      }
+
+      if (successCount > 0) {
+        window.alert(`Successfully scraped ${successCount} website(s)! Created ${totalChunks} total chunks.`);
+        setWebsiteUrls([]);
+        await loadDocumentStats();
+      }
+
+      if (errors.length > 0) {
+        window.alert(`Scraping completed with errors:\n${errors.join('\n')}`);
+      }
     } catch (error: any) {
       console.error('Scraping error:', error);
-      Alert.alert('Error', error.response?.data?.details || 'Failed to scrape website');
+      window.alert(error.message || 'Failed to scrape websites');
     } finally {
       setIsLoading(false);
     }
@@ -158,6 +205,7 @@ export default function App() {
   const toggleDeleteMode = () => {
     setShowDeleteMode(!showDeleteMode);
     setSelectedDocuments(new Set());
+    setCurrentPage(1); // Reset to first page when switching modes
     if (!showDeleteMode) {
       setShowDocumentList(true); // Auto-show list when entering delete mode
     }
@@ -174,7 +222,7 @@ export default function App() {
   };
 
   const selectAllDocuments = () => {
-    const allIds = documentStats.documents.map(doc => doc._id || doc.source);
+    const allIds = paginatedDocuments.map(doc => doc._id || doc.source);
     setSelectedDocuments(new Set(allIds));
   };
 
@@ -194,6 +242,7 @@ export default function App() {
           await loadDocumentStats();
           setShowDeleteMode(false);
           setSelectedDocuments(new Set());
+          setCurrentPage(1); // Reset to first page after clearing
         } catch (error: any) {
           console.error('Clear error:', error);
           window.alert(error.response?.data?.details || 'Failed to clear documents');
@@ -223,6 +272,7 @@ export default function App() {
                 await loadDocumentStats();
                 setShowDeleteMode(false);
                 setSelectedDocuments(new Set());
+                setCurrentPage(1); // Reset to first page after clearing
               } catch (error: any) {
                 console.error('Clear error:', error);
                 Alert.alert('Error', error.response?.data?.details || 'Failed to clear documents');
@@ -257,6 +307,7 @@ export default function App() {
         await loadDocumentStats();
         setShowDeleteMode(false);
         setSelectedDocuments(new Set());
+        setCurrentPage(1); // Reset to first page after deleting
       } catch (error: any) {
         console.error('Delete error:', error);
         window.alert(error.response?.data?.details || 'Failed to delete documents');
@@ -267,63 +318,107 @@ export default function App() {
   };
 
   const handleFileSelect = (event: any) => {
-    const file = event.target.files?.[0];
-    if (file) {
+    const files = Array.from(event.target.files || []) as File[];
+    if (files.length === 0) return;
+
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    files.forEach((file: File) => {
       // Check file type
       const validTypes = ['application/pdf', 'text/plain'];
       if (!validTypes.includes(file.type)) {
-        Alert.alert('Error', 'Please select a PDF or text file');
+        errors.push(`${file.name}: Only PDF and text files are allowed`);
         return;
       }
       
       // Check file size (10MB limit)
       const maxSize = 10 * 1024 * 1024; // 10MB
       if (file.size > maxSize) {
-        Alert.alert('Error', 'File size must be less than 10MB');
+        errors.push(`${file.name}: File size must be less than 10MB`);
         return;
       }
       
-      setSelectedFile(file);
+      validFiles.push(file);
+    });
+
+    if (errors.length > 0) {
+      window.alert(errors.join('\n'));
+    }
+
+    if (validFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...validFiles]);
+    }
+
+    // Reset file input
+    event.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addUrl = () => {
+    if (urlInput.trim() && !websiteUrls.includes(urlInput.trim())) {
+      setWebsiteUrls(prev => [...prev, urlInput.trim()]);
+      setUrlInput('');
     }
   };
 
-  const uploadFile = async () => {
-    if (!selectedFile) {
-      Alert.alert('Error', 'Please select a file first');
+  const removeUrl = (index: number) => {
+    setWebsiteUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFiles = async () => {
+    if (selectedFiles.length === 0) {
+      window.alert('Please select files first');
       return;
     }
 
     try {
       setIsLoading(true);
-      
-      const formData = new FormData();
-      formData.append('file', selectedFile);
+      let totalChunks = 0;
+      let successCount = 0;
+      const errors: string[] = [];
 
-      const response = await fetch(API_ENDPOINTS.DOCUMENTS_UPLOAD, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
+      for (const file of selectedFiles) {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch(API_ENDPOINTS.DOCUMENTS_UPLOAD, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.details || 'Upload failed');
+          }
+
+          const result = await response.json();
+          totalChunks += result.chunksCreated;
+          successCount++;
+        } catch (error: any) {
+          errors.push(`${file.name}: ${error.message}`);
         }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || 'Upload failed');
       }
 
-      const result = await response.json();
-      Alert.alert('Success', `File uploaded successfully! Created ${result.chunksCreated} chunks.`);
-      setSelectedFile(null);
-      
-      // Reset file input
-      const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      
-      await loadDocumentStats();
+      if (successCount > 0) {
+        window.alert(`Successfully uploaded ${successCount} file(s)! Created ${totalChunks} total chunks.`);
+        setSelectedFiles([]);
+        await loadDocumentStats();
+      }
+
+      if (errors.length > 0) {
+        window.alert(`Upload completed with errors:\n${errors.join('\n')}`);
+      }
     } catch (error: any) {
       console.error('Upload error:', error);
-      Alert.alert('Error', error.message || 'Failed to upload file');
+      window.alert(error.message || 'Failed to upload files');
     } finally {
       setIsLoading(false);
     }
@@ -476,7 +571,7 @@ export default function App() {
               <View style={{ marginTop: 12, backgroundColor: 'white', borderRadius: 6, padding: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>
-                    Document List:
+                    Document List ({startIndex + 1}-{Math.min(endIndex, documentStats.documents.length)} of {documentStats.documents.length}):
                   </Text>
                   {showDeleteMode && (
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -526,7 +621,7 @@ export default function App() {
                     </View>
                   )}
                 </View>
-                {documentStats.documents.map((doc, index) => {
+                {paginatedDocuments.map((doc, index) => {
                   const documentId = doc._id || doc.source;
                   const isSelected = selectedDocuments.has(documentId);
                   
@@ -535,7 +630,7 @@ export default function App() {
                       flexDirection: 'row', 
                       alignItems: 'center',
                       paddingVertical: 8,
-                      borderBottomWidth: index < documentStats.documents.length - 1 ? 1 : 0,
+                      borderBottomWidth: index < paginatedDocuments.length - 1 ? 1 : 0,
                       borderBottomColor: '#E5E7EB',
                       backgroundColor: isSelected ? '#FEF2F2' : 'transparent'
                     }}>
@@ -570,52 +665,165 @@ export default function App() {
                     </View>
                   );
                 })}
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    marginTop: 12, 
+                    paddingTop: 12, 
+                    borderTopWidth: 1, 
+                    borderTopColor: '#E5E7EB' 
+                  }}>
+                    <TouchableOpacity
+                      onPress={goToPreviousPage}
+                      style={{
+                        backgroundColor: currentPage > 1 ? '#3B82F6' : '#D1D5DB',
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        pointerEvents: currentPage > 1 ? 'auto' : 'none'
+                      }}
+                      disabled={currentPage <= 1}
+                    >
+                      <Text style={{ 
+                        color: currentPage > 1 ? 'white' : '#6B7280', 
+                        fontSize: 12, 
+                        fontWeight: '600' 
+                      }}>
+                        ← Previous
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                      Page {currentPage} of {totalPages}
+                    </Text>
+                    
+                    <TouchableOpacity
+                      onPress={goToNextPage}
+                      style={{
+                        backgroundColor: currentPage < totalPages ? '#3B82F6' : '#D1D5DB',
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                        pointerEvents: currentPage < totalPages ? 'auto' : 'none'
+                      }}
+                      disabled={currentPage >= totalPages}
+                    >
+                      <Text style={{ 
+                        color: currentPage < totalPages ? 'white' : '#6B7280', 
+                        fontSize: 12, 
+                        fontWeight: '600' 
+                      }}>
+                        Next →
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
           </View>
 
           {/* Website Scraping */}
           <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Scrape Website</Text>
-            <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: '#D1D5DB',
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                marginBottom: 12,
-              }}
-              placeholder="Enter website URL..."
-              value={websiteUrl}
-              onChangeText={setWebsiteUrl}
-              editable={!isLoading}
-            />
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Scrape Websites</Text>
+            
+            {/* URL Input */}
+            <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+              <TextInput
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  marginRight: 8,
+                }}
+                placeholder="Enter website URL..."
+                value={urlInput}
+                onChangeText={setUrlInput}
+                editable={!isLoading}
+                onSubmitEditing={addUrl}
+              />
+              <TouchableOpacity
+                onPress={addUrl}
+                style={{
+                  backgroundColor: urlInput.trim() && !isLoading ? '#3B82F6' : '#D1D5DB',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  pointerEvents: (!urlInput.trim() || isLoading) ? 'none' : 'auto'
+                }}
+                disabled={!urlInput.trim() || isLoading}
+              >
+                <Text style={{ color: urlInput.trim() && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
+                  ADD
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* URL List */}
+            {websiteUrls.length > 0 && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                  URLs to scrape ({websiteUrls.length}):
+                </Text>
+                {websiteUrls.map((url, index) => (
+                  <View key={index} style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 8, 
+                    borderRadius: 6, 
+                    marginBottom: 4 
+                  }}>
+                    <Text style={{ flex: 1, fontSize: 12, color: '#374151' }}>{url}</Text>
+                    <TouchableOpacity
+                      onPress={() => removeUrl(index)}
+                      style={{
+                        backgroundColor: '#EF4444',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        marginLeft: 8
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <TouchableOpacity
               style={{
-                backgroundColor: websiteUrl.trim() && !isLoading ? '#10B981' : '#D1D5DB',
+                backgroundColor: websiteUrls.length > 0 && !isLoading ? '#10B981' : '#D1D5DB',
                 padding: 12,
                 borderRadius: 8,
                 alignItems: 'center',
-                pointerEvents: (!websiteUrl.trim() || isLoading) ? 'none' : 'auto'
+                pointerEvents: (websiteUrls.length === 0 || isLoading) ? 'none' : 'auto'
               }}
-              onPress={scrapeWebsite}
-              disabled={!websiteUrl.trim() || isLoading}
+              onPress={scrapeWebsites}
+              disabled={websiteUrls.length === 0 || isLoading}
             >
-              <Text style={{ color: websiteUrl.trim() && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
-                {isLoading ? 'Processing...' : 'Scrape Website'}
+              <Text style={{ color: websiteUrls.length > 0 && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
+                {isLoading ? 'Processing...' : `Scrape ${websiteUrls.length} Website${websiteUrls.length !== 1 ? 's' : ''}`}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* File Upload */}
           <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Document</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Documents</Text>
             
             <input
               id="fileInput"
               type="file"
               accept=".pdf,.txt"
+              multiple
               onChange={handleFileSelect}
               style={{
                 marginBottom: 12,
@@ -627,30 +835,59 @@ export default function App() {
               disabled={isLoading}
             />
             
-            {selectedFile && (
-              <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12 }}>
-                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </Text>
+            {/* File List */}
+            {selectedFiles.length > 0 && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                  Selected files ({selectedFiles.length}):
+                </Text>
+                {selectedFiles.map((file, index) => (
+                  <View key={index} style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 8, 
+                    borderRadius: 6, 
+                    marginBottom: 4 
+                  }}>
+                    <Text style={{ flex: 1, fontSize: 12, color: '#374151' }}>
+                      {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => removeFile(index)}
+                      style={{
+                        backgroundColor: '#EF4444',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        marginLeft: 8
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             )}
             
             <TouchableOpacity
               style={{
-                backgroundColor: selectedFile && !isLoading ? '#8B5CF6' : '#D1D5DB',
+                backgroundColor: selectedFiles.length > 0 && !isLoading ? '#8B5CF6' : '#D1D5DB',
                 padding: 12,
                 borderRadius: 8,
                 alignItems: 'center',
-                pointerEvents: (!selectedFile || isLoading) ? 'none' : 'auto'
+                pointerEvents: (selectedFiles.length === 0 || isLoading) ? 'none' : 'auto'
               }}
-              onPress={uploadFile}
-              disabled={!selectedFile || isLoading}
+              onPress={uploadFiles}
+              disabled={selectedFiles.length === 0 || isLoading}
             >
-              <Text style={{ color: selectedFile && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
-                {isLoading ? 'Uploading...' : 'Upload & Process'}
+              <Text style={{ color: selectedFiles.length > 0 && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
+                {isLoading ? 'Uploading...' : `Upload & Process ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''}`}
               </Text>
             </TouchableOpacity>
             
             <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
-              Supports PDF and text files (max 10MB)
+              Supports PDF and text files (max 10MB each). Select multiple files at once.
             </Text>
           </View>
 

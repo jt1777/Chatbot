@@ -13,9 +13,6 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "devDependencies": {
-    "typescript": "^5.9.2"
-  },
   "dependencies": {
     "@huggingface/transformers": "^3.7.2",
     "@langchain/community": "^0.3.55",
