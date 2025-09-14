@@ -2,9 +2,7 @@ import * as dotenv from 'dotenv';
 import { scrapeAndSave } from './loaders/webscrape';
 import { convertPDFsToText } from './loaders/pdfloader';
 import { splitDocuments } from './preprocess/textsplitter';
-import { MongoDBAtlasVectorSearch } from '@langchain/mongodb';
-import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/huggingface_transformers';
-import { MongoClient } from 'mongodb';
+import { VectorStoreService } from './services/vectorStoreService';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Document, PipelineOptions } from './types';
@@ -16,19 +14,14 @@ export async function runPipeline(options: PipelineOptions = {}): Promise<void> 
     // Ensure environment variables are loaded
     dotenv.config({ path: '../.env' });
     
-    const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) {
-      throw new Error('MONGODB_URI environment variable is required');
-    }
+    // Initialize VectorStoreService
+    const vectorStoreService = VectorStoreService.getInstance();
+    await vectorStoreService.initialize(collectionName);
     
     // Step 0: Clear existing data if requested
     if (clearExisting) {
       console.log('🗑️  Clearing existing knowledge base...');
-      const client = new MongoClient(mongoUri);
-      await client.connect();
-      const db = client.db();
-      await db.collection(collectionName).deleteMany({});
-      await client.close();
+      await vectorStoreService.clearAllDocuments(collectionName);
       console.log('✅ Existing knowledge base cleared');
     }
 
@@ -80,24 +73,9 @@ export async function runPipeline(options: PipelineOptions = {}): Promise<void> 
       separators: ['\n\n', '\n', '。', '！', '？', '；', '，', '.', '!', '?', ';', ',', ' ', ''],
     });
 
-    // Step 5: Generate embeddings and update vector store
-    const embeddings = new HuggingFaceTransformersEmbeddings({
-      model: 'sentence-transformers/all-MiniLM-L6-v2'
-    });
-    
-    // Connect to MongoDB
-    const client = new MongoClient(mongoUri);
-    await client.connect();
-    const db = client.db();
-    const collection = db.collection(collectionName);
-    
-    // Initialize the MongoDB vector store
-    const vectorStore = new MongoDBAtlasVectorSearch(embeddings, {
-      collection: collection,
-    });
-    
-    await vectorStore.addDocuments(splitDocs);
-    await client.close();
+    // Step 5: Add documents to vector store
+    await vectorStoreService.addDocuments(splitDocs);
+    await vectorStoreService.close();
 
     console.log('Pipeline completed successfully');
   } catch (error) {
@@ -115,24 +93,27 @@ export async function smartUpdate(options: PipelineOptions = {}): Promise<void> 
   // Ensure environment variables are loaded
   dotenv.config({ path: '../.env' });
   
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) {
-    throw new Error('MONGODB_URI environment variable is required');
-  }
+  // Initialize VectorStoreService to check existing documents
+  const vectorStoreService = VectorStoreService.getInstance();
+  await vectorStoreService.initialize(collectionName);
   
-  // Check if knowledge base exists
-  const client = new MongoClient(mongoUri);
-  await client.connect();
-  const db = client.db();
-  const existingDocs = await db.collection(collectionName).countDocuments();
-  await client.close();
-  
-  if (existingDocs > 0) {
-    console.log(`📊 Found ${existingDocs} existing documents in knowledge base`);
-    console.log('⚠️  Running incremental update (may create duplicates)');
-    console.log('💡 For clean rebuild, use: runPipeline({ clearExisting: true })');
-  } else {
-    console.log('📝 No existing documents found - running fresh build');
+  try {
+    // Check if knowledge base exists
+    const client = vectorStoreService.getClient();
+    if (client) {
+      const db = client.db();
+      const existingDocs = await db.collection(collectionName).countDocuments();
+      
+      if (existingDocs > 0) {
+        console.log(`📊 Found ${existingDocs} existing documents in knowledge base`);
+        console.log('⚠️  Running incremental update (may create duplicates)');
+        console.log('💡 For clean rebuild, use: runPipeline({ clearExisting: true })');
+      } else {
+        console.log('📝 No existing documents found - running fresh build');
+      }
+    }
+  } finally {
+    await vectorStoreService.close();
   }
   
   await runPipeline(options);

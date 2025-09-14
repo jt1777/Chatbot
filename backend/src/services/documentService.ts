@@ -4,16 +4,16 @@ import pdfParse from 'pdf-parse';
 import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '../types/document';
-import { RAGService } from './ragService';
+import { VectorStoreService } from './vectorStoreService';
 import { DocumentTracker } from './documentTracker';
 
 export class DocumentService {
-  private ragService: RAGService;
+  private vectorStoreService: VectorStoreService;
   private documentTracker: DocumentTracker;
   private textSplitter: RecursiveCharacterTextSplitter;
 
-  constructor(ragService: RAGService) {
-    this.ragService = ragService;
+  constructor() {
+    this.vectorStoreService = VectorStoreService.getInstance();
     this.documentTracker = new DocumentTracker();
     this.textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
@@ -161,7 +161,7 @@ export class DocumentService {
 
   async addDocumentsToVectorStore(documents: Document[]): Promise<void> {
     try {
-      await this.ragService.addDocuments(documents);
+      await this.vectorStoreService.addDocuments(documents);
       console.log(`Added ${documents.length} documents to vector store`);
     } catch (error) {
       console.error('Error adding documents to vector store:', error);

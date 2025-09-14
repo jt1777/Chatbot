@@ -22,7 +22,7 @@ const conversationHistory = new Map<string, string[]>();
 
 // Initialize services
 const ragService = new RAGService();
-const documentService = new DocumentService(ragService);
+const documentService = new DocumentService();
 
 // Configure multer for file uploads
 const upload = multer({
