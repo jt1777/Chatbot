@@ -13,8 +13,8 @@ export class DocumentService {
   constructor(ragService: RAGService) {
     this.ragService = ragService;
     this.textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
+      chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200', 10),
       separators: ['\n\n', '\n', '。', '！', '？', '；', '，', '.', '!', '?', ';', ',', ' ', '']
     });
   }

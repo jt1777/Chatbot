@@ -63,7 +63,8 @@ app.post('/api/chat', async (req, res) => {
     if (useRAG) {
       try {
         console.log('🔍 RAG: Searching for documents related to:', message);
-        const relevantDocs = await ragService.searchSimilarDocuments(message, 3);
+        const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '5', 10);
+        const relevantDocs = await ragService.searchSimilarDocuments(message, searchLimit);
         console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
         
         if (relevantDocs.length > 0) {

@@ -52,18 +52,37 @@ export class RAGService {
       console.log('🔍 Vector search: Querying for:', query);
       console.log('🔍 Vector search: Limit:', limit);
       
-      const results = await this.vectorStore.similaritySearch(query, limit);
-      console.log('📊 Vector search: Raw results count:', results.length);
+      // Get similarity threshold from environment or use default
+      const similarityThreshold = parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7');
+      console.log('🎯 Similarity threshold:', similarityThreshold);
       
-      if (results.length > 0 && results[0]) {
-        console.log('📄 Vector search: First result preview:', results[0].pageContent.substring(0, 100) + '...');
-      }
+      // Use similaritySearchWithScore to get relevance scores
+      const resultsWithScores = await this.vectorStore.similaritySearchWithScore(query, limit);
+      console.log('📊 Vector search: Raw results with scores:', resultsWithScores.length);
       
-      return results.map(doc => ({
+      // Log all scores for debugging
+      resultsWithScores.forEach((result, index) => {
+        const [doc, score] = result;
+        console.log(`📄 Result ${index + 1}: Score = ${score.toFixed(3)}, Preview = "${doc.pageContent.substring(0, 100)}..."`);
+      });
+      
+      // Filter results by similarity threshold
+      const filteredResults = resultsWithScores.filter(([doc, score]) => {
+        const isRelevant = score >= similarityThreshold;
+        if (!isRelevant) {
+          console.log(`❌ Filtered out result with score ${score.toFixed(3)} (below threshold ${similarityThreshold})`);
+        }
+        return isRelevant;
+      });
+      
+      console.log(`✅ Filtered results: ${filteredResults.length}/${resultsWithScores.length} documents above threshold`);
+      
+      return filteredResults.map(([doc, score]) => ({
         pageContent: doc.pageContent,
         metadata: {
           source: doc.metadata.source || 'unknown',
           type: doc.metadata.type || 'upload',
+          similarityScore: score,
           ...doc.metadata
         }
       }));
