@@ -73,13 +73,13 @@ export default function App() {
 
   const loadDocumentStats = async () => {
     try {
-      console.log('🔍 Loading document stats from:', API_ENDPOINTS.DOCUMENTS_STATS);
+      //console.log('🔍 Loading document stats from:', API_ENDPOINTS.DOCUMENTS_STATS);
       const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS, {
         headers: {
           'ngrok-skip-browser-warning': 'true'
         }
       });
-      console.log('📊 Stats response:', response.data);
+      //console.log('📊 Stats response:', response.data);
       setDocumentStats(response.data);
     } catch (error) {
       console.error('❌ Error loading document stats:', error);
@@ -110,6 +110,35 @@ export default function App() {
       Alert.alert('Error', error.response?.data?.details || 'Failed to scrape website');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const clearChat = () => {
+    
+    // For web, use window.confirm instead of Alert.alert which might not work properly
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Are you sure you want to clear all chat messages?');
+      if (confirmed) {
+        //console.log('Clearing messages...');
+        setMessages([]);
+        //console.log('Messages cleared');
+      }
+    } else {
+      // Fallback to Alert.alert for mobile
+      Alert.alert(
+        'Clear Chat',
+        'Are you sure you want to clear all chat messages?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: () => {
+              setMessages([]);
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -340,6 +369,7 @@ export default function App() {
                 padding: 12,
                 borderRadius: 8,
                 alignItems: 'center',
+                pointerEvents: (!websiteUrl.trim() || isLoading) ? 'none' : 'auto'
               }}
               onPress={scrapeWebsite}
               disabled={!websiteUrl.trim() || isLoading}
@@ -381,6 +411,7 @@ export default function App() {
                 padding: 12,
                 borderRadius: 8,
                 alignItems: 'center',
+                pointerEvents: (!selectedFile || isLoading) ? 'none' : 'auto'
               }}
               onPress={uploadFile}
               disabled={!selectedFile || isLoading}
@@ -404,6 +435,7 @@ export default function App() {
                 padding: 12,
                 borderRadius: 8,
                 alignItems: 'center',
+                pointerEvents: isLoading ? 'none' : 'auto'
               }}
               onPress={clearAllDocuments}
               disabled={isLoading}
@@ -419,7 +451,7 @@ export default function App() {
       {/* Input - Only show on chat tab */}
       {currentTab === 'chat' && (
         <>
-          {/* Strict Mode Toggle */}
+          {/* Chat Controls */}
           <View style={{ 
             flexDirection: 'row', 
             justifyContent: 'space-between', 
@@ -430,22 +462,47 @@ export default function App() {
             borderTopWidth: 1,
             borderTopColor: '#E5E7EB'
           }}>
-            <Text style={{ fontSize: 14, color: '#6B7280' }}>
-              {strictMode ? '🔒 Strict Mode: Only knowledge base' : '🌐 General Mode: AI + knowledge base'}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setStrictMode(!strictMode)}
-              style={{
-                backgroundColor: strictMode ? '#10B981' : '#6B7280',
-                borderRadius: 12,
-                paddingHorizontal: 12,
-                paddingVertical: 4
-              }}
-            >
-              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
-                {strictMode ? 'STRICT' : 'GENERAL'}
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: '#6B7280' }}>
+                {strictMode ? '🔒 Strict Mode: Only knowledge base' : '🌐 General Mode: AI + knowledge base'}
               </Text>
-            </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={clearChat}
+                style={{
+                  backgroundColor: messages.length === 0 ? '#D1D5DB' : '#EF4444',
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  marginRight: 8,
+                  opacity: messages.length === 0 ? 0.5 : 1,
+                  pointerEvents: messages.length === 0 ? 'none' : 'auto'
+                }}
+                disabled={messages.length === 0}
+              >
+                <Text style={{ 
+                  color: messages.length === 0 ? '#6B7280' : 'white', 
+                  fontSize: 12, 
+                  fontWeight: '600' 
+                }}>
+                  CLEAR CHAT
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setStrictMode(!strictMode)}
+                style={{
+                  backgroundColor: strictMode ? '#10B981' : '#6B7280',
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 4
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+                  {strictMode ? 'STRICT' : 'GENERAL'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={{ 
@@ -476,6 +533,7 @@ export default function App() {
               padding: 12,
               borderRadius: 8,
               backgroundColor: input.trim() && !isLoading ? '#3B82F6' : '#D1D5DB',
+              pointerEvents: (!input.trim() || isLoading) ? 'none' : 'auto'
             }}
             onPress={sendMessage}
             disabled={!input.trim() || isLoading}

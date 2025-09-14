@@ -7,6 +7,12 @@ const getApiBaseUrl = (): string => {
     return process.env.EXPO_PUBLIC_API_BASE_URL;
   }
   
+  // Auto-detect based on environment
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    // Running locally - use localhost backend
+    return 'http://localhost:3002';
+  }
+  
   // Fallback to localhost for development
   return 'http://localhost:3002';
 };
@@ -24,7 +30,7 @@ export const API_ENDPOINTS = {
 };
 
 // Log the current configuration (helpful for debugging)
-console.log('🔧 API Configuration:', {
+{/*console.log('🔧 API Configuration:', {
   baseUrl: API_BASE_URL,
   source: process.env.EXPO_PUBLIC_API_BASE_URL ? 'environment' : 'fallback'
-});
+});*/}
