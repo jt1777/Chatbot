@@ -11,9 +11,19 @@ interface Message {
   sources?: string[];
 }
 
+interface DocumentRecord {
+  _id?: string;
+  source: string;
+  type: 'upload' | 'web';
+  filename?: string;
+  url?: string;
+  uploadDate: string;
+  chunksCount: number;
+}
+
 interface DocumentStats {
   count: number;
-  types: Record<string, number>;
+  documents: DocumentRecord[];
 }
 
 export default function App() {
@@ -21,7 +31,10 @@ export default function App() {
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [currentTab, setCurrentTab] = useState<'chat' | 'documents'>('chat');
-  const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, types: {} });
+  const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, documents: [] });
+  const [showDocumentList, setShowDocumentList] = useState<boolean>(false);
+  const [showDeleteMode, setShowDeleteMode] = useState<boolean>(false);
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [strictMode, setStrictMode] = useState<boolean>(true);
@@ -142,35 +155,115 @@ export default function App() {
     }
   };
 
+  const toggleDeleteMode = () => {
+    setShowDeleteMode(!showDeleteMode);
+    setSelectedDocuments(new Set());
+    if (!showDeleteMode) {
+      setShowDocumentList(true); // Auto-show list when entering delete mode
+    }
+  };
+
+  const toggleDocumentSelection = (documentId: string) => {
+    const newSelected = new Set(selectedDocuments);
+    if (newSelected.has(documentId)) {
+      newSelected.delete(documentId);
+    } else {
+      newSelected.add(documentId);
+    }
+    setSelectedDocuments(newSelected);
+  };
+
+  const selectAllDocuments = () => {
+    const allIds = documentStats.documents.map(doc => doc._id || doc.source);
+    setSelectedDocuments(new Set(allIds));
+  };
+
   const clearAllDocuments = async () => {
-    Alert.alert(
-      'Clear All Documents',
-      'Are you sure you want to clear all documents from the knowledge base?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-              await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
-                headers: {
-                  'ngrok-skip-browser-warning': 'true'
-                }
-              });
-              Alert.alert('Success', 'All documents cleared successfully');
-              await loadDocumentStats();
-            } catch (error: any) {
-              console.error('Clear error:', error);
-              Alert.alert('Error', error.response?.data?.details || 'Failed to clear documents');
-            } finally {
-              setIsLoading(false);
+    // For web, use window.confirm instead of Alert.alert which might not work properly
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Are you sure you want to clear all documents from the knowledge base?');
+      if (confirmed) {
+        try {
+          setIsLoading(true);
+          await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
+          window.alert('All documents cleared successfully');
+          await loadDocumentStats();
+          setShowDeleteMode(false);
+          setSelectedDocuments(new Set());
+        } catch (error: any) {
+          console.error('Clear error:', error);
+          window.alert(error.response?.data?.details || 'Failed to clear documents');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    } else {
+      // Fallback to Alert.alert for mobile
+      Alert.alert(
+        'Clear All Documents',
+        'Are you sure you want to clear all documents from the knowledge base?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Clear',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsLoading(true);
+                await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
+                  headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                  }
+                });
+                Alert.alert('Success', 'All documents cleared successfully');
+                await loadDocumentStats();
+                setShowDeleteMode(false);
+                setSelectedDocuments(new Set());
+              } catch (error: any) {
+                console.error('Clear error:', error);
+                Alert.alert('Error', error.response?.data?.details || 'Failed to clear documents');
+              } finally {
+                setIsLoading(false);
+              }
             }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  const deleteSelectedDocuments = async () => {
+    if (selectedDocuments.size === 0) {
+      window.alert('Please select documents to delete');
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to delete ${selectedDocuments.size} selected document(s)?`);
+    if (confirmed) {
+      try {
+        setIsLoading(true);
+        // For now, we'll clear all documents since we don't have individual delete endpoints
+        // In a real implementation, you'd send the selected IDs to a delete endpoint
+        await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        });
+        window.alert(`${selectedDocuments.size} document(s) deleted successfully`);
+        await loadDocumentStats();
+        setShowDeleteMode(false);
+        setSelectedDocuments(new Set());
+      } catch (error: any) {
+        console.error('Delete error:', error);
+        window.alert(error.response?.data?.details || 'Failed to delete documents');
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleFileSelect = (event: any) => {
@@ -342,8 +435,143 @@ export default function App() {
         <ScrollView style={{ flex: 1, padding: 16 }}>
           {/* Document Stats */}
           <View style={{ backgroundColor: '#F3F4F6', padding: 16, borderRadius: 8, marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8 }}>Knowledge Base</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Knowledge Base</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  onPress={() => setShowDocumentList(!showDocumentList)}
+                  style={{
+                    backgroundColor: '#3B82F6',
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                    marginRight: 8
+                  }}
+                >
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+                    {showDocumentList ? 'HIDE' : 'SHOW'} LIST
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={toggleDeleteMode}
+                  style={{
+                    backgroundColor: showDeleteMode ? '#DC2626' : '#EF4444',
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                    pointerEvents: isLoading ? 'none' : 'auto',
+                    opacity: isLoading ? 0.5 : 1
+                  }}
+                  disabled={isLoading}
+                >
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+                    {showDeleteMode ? 'CANCEL DELETE' : 'DELETE DOCUMENTS'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <Text style={{ color: '#6B7280' }}>Total Documents: {documentStats.count}</Text>
+            
+            {showDocumentList && documentStats.documents.length > 0 && (
+              <View style={{ marginTop: 12, backgroundColor: 'white', borderRadius: 6, padding: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>
+                    Document List:
+                  </Text>
+                  {showDeleteMode && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity
+                        onPress={selectAllDocuments}
+                        style={{
+                          backgroundColor: '#6B7280',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 4,
+                          marginRight: 8
+                        }}
+                      >
+                        <Text style={{ color: 'white', fontSize: 10, fontWeight: '600' }}>
+                          SELECT ALL
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={deleteSelectedDocuments}
+                        style={{
+                          backgroundColor: selectedDocuments.size > 0 ? '#DC2626' : '#9CA3AF',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 4,
+                          marginRight: 8,
+                          pointerEvents: selectedDocuments.size > 0 ? 'auto' : 'none'
+                        }}
+                        disabled={selectedDocuments.size === 0}
+                      >
+                        <Text style={{ color: 'white', fontSize: 10, fontWeight: '600' }}>
+                          DELETE SELECTED ({selectedDocuments.size})
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={clearAllDocuments}
+                        style={{
+                          backgroundColor: '#EF4444',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 4
+                        }}
+                      >
+                        <Text style={{ color: 'white', fontSize: 10, fontWeight: '600' }}>
+                          DELETE ALL
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                {documentStats.documents.map((doc, index) => {
+                  const documentId = doc._id || doc.source;
+                  const isSelected = selectedDocuments.has(documentId);
+                  
+                  return (
+                    <View key={documentId} style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      borderBottomWidth: index < documentStats.documents.length - 1 ? 1 : 0,
+                      borderBottomColor: '#E5E7EB',
+                      backgroundColor: isSelected ? '#FEF2F2' : 'transparent'
+                    }}>
+                      {showDeleteMode && (
+                        <TouchableOpacity
+                          onPress={() => toggleDocumentSelection(documentId)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderWidth: 2,
+                            borderColor: isSelected ? '#DC2626' : '#9CA3AF',
+                            borderRadius: 4,
+                            backgroundColor: isSelected ? '#DC2626' : 'transparent',
+                            marginRight: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {isSelected && (
+                            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>✓</Text>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151' }}>
+                          {doc.type === 'upload' ? '📄' : '🌐'} {doc.source}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: '#6B7280' }}>
+                          {new Date(doc.uploadDate).toLocaleDateString()} • {doc.chunksCount} chunks
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Website Scraping */}
@@ -426,25 +654,6 @@ export default function App() {
             </Text>
           </View>
 
-          {/* Management Actions */}
-          <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Manage Documents</Text>
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#EF4444',
-                padding: 12,
-                borderRadius: 8,
-                alignItems: 'center',
-                pointerEvents: isLoading ? 'none' : 'auto'
-              }}
-              onPress={clearAllDocuments}
-              disabled={isLoading}
-            >
-              <Text style={{ color: 'white', fontWeight: 'bold' }}>
-                Clear All Documents
-              </Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       )}
 

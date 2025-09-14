@@ -42,8 +42,9 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
-// Initialize RAG service
+// Initialize RAG service and document service
 ragService.initialize().catch(console.error);
+documentService.initialize().catch(console.error);
 
 app.get('/', (req, res) => {
   res.send('Backend running');
@@ -187,6 +188,9 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
     }
 
     await documentService.addDocumentsToVectorStore(documents);
+    
+    // Track the document
+    await documentService.trackDocument(originalname, 'upload', documents.length);
 
     res.json({
       message: 'File uploaded and processed successfully',
@@ -213,6 +217,9 @@ app.post('/api/documents/scrape', async (req, res) => {
 
     const documents = await documentService.scrapeWebsite(url);
     await documentService.addDocumentsToVectorStore(documents);
+    
+    // Track the document
+    await documentService.trackDocument(url, 'web', documents.length);
 
     res.json({
       message: 'Website scraped and processed successfully',
@@ -246,6 +253,7 @@ app.get('/api/documents/stats', async (req, res) => {
 app.delete('/api/documents/clear', async (req, res) => {
   try {
     await ragService.clearAllDocuments();
+    await documentService.clearAllDocuments();
     res.json({ message: 'All documents cleared successfully' });
   } catch (error: any) {
     console.error('Clear documents error:', error);

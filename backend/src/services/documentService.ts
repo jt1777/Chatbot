@@ -5,18 +5,25 @@ import * as cheerio from 'cheerio';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '../types/document';
 import { RAGService } from './ragService';
+import { DocumentTracker } from './documentTracker';
 
 export class DocumentService {
   private ragService: RAGService;
+  private documentTracker: DocumentTracker;
   private textSplitter: RecursiveCharacterTextSplitter;
 
   constructor(ragService: RAGService) {
     this.ragService = ragService;
+    this.documentTracker = new DocumentTracker();
     this.textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
       chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200', 10),
       separators: ['\n\n', '\n', '。', '！', '？', '；', '，', '.', '!', '?', ';', ',', ' ', '']
     });
+  }
+
+  async initialize(): Promise<void> {
+    await this.documentTracker.initialize();
   }
 
   async processPDFBuffer(buffer: Buffer, filename: string): Promise<Document[]> {
@@ -162,23 +169,24 @@ export class DocumentService {
     }
   }
 
-  async getDocumentStats(): Promise<{ count: number; types: Record<string, number> }> {
+  async trackDocument(source: string, type: 'upload' | 'web', chunksCount: number): Promise<void> {
+    await this.documentTracker.addDocument(source, type, chunksCount);
+  }
+
+  async getDocumentStats(): Promise<{ count: number; documents: any[] }> {
     try {
       console.log('🔍 Getting document stats...');
-      const count = await this.ragService.getDocumentCount();
-      console.log('📊 Document count from MongoDB:', count);
+      const stats = await this.documentTracker.getDocumentStats();
+      console.log('📊 Document stats:', stats);
       
-      return {
-        count,
-        types: {
-          pdf: 0, // Would need to query MongoDB for actual counts by type
-          web: 0,
-          upload: 0
-        }
-      };
+      return stats;
     } catch (error) {
       console.error('❌ Error getting document stats:', error);
       throw error;
     }
+  }
+
+  async clearAllDocuments(): Promise<void> {
+    await this.documentTracker.clearAllDocuments();
   }
 }
