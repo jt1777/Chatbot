@@ -6,6 +6,8 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '../types/document';
 import { VectorStoreService } from './vectorStoreService';
 import { DocumentTracker } from './documentTracker';
+import { createWorker } from 'tesseract.js';
+const { Poppler } = require('node-poppler');
 
 export class DocumentService {
   private vectorStoreService: VectorStoreService;
@@ -24,14 +26,39 @@ export class DocumentService {
 
   async initialize(): Promise<void> {
     await this.documentTracker.initialize();
+    try {
+      await fs.mkdir('./temp', { recursive: true });
+    } catch (error) {
+      console.warn('Could not create temp directory:', error);
+    }
   }
 
   async processPDFBuffer(buffer: Buffer, filename: string): Promise<Document[]> {
     try {
-      const { text } = await pdfParse(buffer);
-      
-      if (!text || text.trim().length < 50) {
-        throw new Error('PDF appears to have no extractable text or is scanned');
+      let text: string;
+      let extractionMethod: 'text' | 'ocr' = 'text';
+      let ocrConfidence: number | null = null;
+
+      try {
+        const pdfResult = await pdfParse(buffer);
+        text = pdfResult.text;
+        if (!text || text.trim().length < 50) {
+          console.log(`PDF ${filename} has no extractable text, trying OCR...`);
+          const { text: ocrText, confidence } = await this.extractTextWithOCR(buffer, filename);
+          text = ocrText;
+          extractionMethod = 'ocr';
+          ocrConfidence = confidence;
+        }
+      } catch (pdfError) {
+        console.log(`PDF text extraction failed for ${filename}, trying OCR...`);
+        const { text: ocrText, confidence } = await this.extractTextWithOCR(buffer, filename);
+        text = ocrText;
+        extractionMethod = 'ocr';
+        ocrConfidence = confidence;
+      }
+
+      if (!text || text.trim().length < 10) {
+        throw new Error('PDF appears to have no extractable content even with OCR');
       }
 
       const document: Document = {
@@ -39,28 +66,121 @@ export class DocumentService {
         metadata: {
           source: filename,
           type: 'upload',
-          uploadDate: new Date().toISOString()
+          uploadDate: new Date().toISOString(),
+          extractionMethod,
+          ocrConfidence
         }
       };
 
-      // Split document into chunks
       const splitDocs = await this.textSplitter.splitDocuments([document]);
-      
-      // Convert to our Document type
       const typedDocs: Document[] = splitDocs.map(doc => ({
         pageContent: doc.pageContent,
         metadata: {
           source: doc.metadata.source || filename,
           type: doc.metadata.type || 'upload',
+          extractionMethod,
+          ocrConfidence,
           ...doc.metadata
         }
       }));
-      
-      console.log(`Processed PDF: ${filename}, created ${typedDocs.length} chunks`);
+
+      console.log(`Processed PDF: ${filename} (${extractionMethod}), created ${typedDocs.length} chunks`);
       return typedDocs;
     } catch (error) {
       console.error(`Error processing PDF ${filename}:`, error);
       throw error;
+    }
+  }
+
+  private async extractTextWithOCR(buffer: Buffer, filename: string): Promise<{ text: string; confidence: number }> {
+    const worker = await createWorker('eng');
+    const poppler = new Poppler('/opt/homebrew/bin'); // Path to Poppler binaries on ARM64 Mac
+    
+    try {
+      // Save PDF buffer to temporary file
+      const tempPdfPath = path.join('./temp', `${filename}_${Date.now()}.pdf`);
+      await fs.writeFile(tempPdfPath, buffer);
+      console.log(`Saved PDF to: ${tempPdfPath}`);
+
+      // Convert PDF to images using node-poppler (much faster!)
+      const outputDir = './temp';
+      const outputPrefix = path.join(outputDir, `${filename}_page`);
+      
+      console.log('Converting PDF to images with node-poppler...');
+      console.log(`Output prefix: ${outputPrefix}`);
+      await poppler.pdfToCairo(tempPdfPath, outputPrefix, {
+        pngFile: true,
+        singleFile: false,
+        firstPageToConvert: 1,
+        lastPageToConvert: -1, // All pages
+        resolutionXYAxis: 300, // High resolution for better OCR
+        cropBox: false,
+        jpegFile: false
+      });
+      
+      console.log('✅ PDF conversion completed, finding generated image files...');
+      
+      // Find all generated PNG files in the temp directory
+      const prefixFilename = `${filename}_page`;
+      console.log(`Looking for files in ${outputDir} with prefix: ${prefixFilename}`);
+      const tempDirContents = await fs.readdir(outputDir);
+      console.log(`All files in temp directory:`, tempDirContents);
+      
+      const imageFiles = tempDirContents
+        .filter(file => file.startsWith(prefixFilename) && file.endsWith('.png'))
+        .sort(); // Sort to ensure correct page order
+      
+      console.log(`✅ Found ${imageFiles.length} images:`, imageFiles);
+      
+      if (imageFiles.length === 0) {
+        throw new Error(`No image files were generated. Expected files starting with: ${prefixFilename}`);
+      }
+      
+      let fullText = '';
+      let totalConfidence = 0;
+
+      // Process each page with OCR
+      for (let i = 0; i < imageFiles.length; i++) {
+        const imageFile = imageFiles[i];
+        if (!imageFile) {
+          console.warn(`Skipping undefined image file at index ${i}`);
+          continue;
+        }
+        
+        const imagePath = path.join(outputDir, imageFile);
+        
+        console.log(`🔍 Processing page ${i + 1}/${imageFiles.length} with OCR...`);
+        console.log(`Image path: ${imagePath}`); // Debug log
+        
+        const { data: { text, confidence } } = await worker.recognize(imagePath);
+        console.log(`✅ OCR completed for page ${i + 1}, confidence: ${confidence}%`);
+        
+        fullText += text + '\n\n--- Page Break ---\n\n';
+        totalConfidence += confidence;
+        
+        // Clean up image file
+        try {
+          await fs.unlink(imagePath);
+        } catch (cleanupError) {
+          console.warn(`Could not delete temp file ${imagePath}:`, cleanupError);
+        }
+      }
+
+      // Clean up temp PDF file
+      try {
+        await fs.unlink(tempPdfPath);
+      } catch (cleanupError) {
+        console.warn(`Could not delete temp PDF file ${tempPdfPath}:`, cleanupError);
+      }
+
+      const avgConfidence = totalConfidence / imageFiles.length;
+      console.log(`🎉 OCR completed with average confidence: ${avgConfidence.toFixed(2)}%`);
+      
+      await worker.terminate();
+      return { text: fullText.trim(), confidence: avgConfidence };
+    } catch (error) {
+      await worker.terminate();
+      throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -79,10 +199,7 @@ export class DocumentService {
         }
       };
 
-      // Split document into chunks
       const splitDocs = await this.textSplitter.splitDocuments([document]);
-      
-      // Convert to our Document type
       const typedDocs: Document[] = splitDocs.map(doc => ({
         pageContent: doc.pageContent,
         metadata: {
@@ -91,7 +208,7 @@ export class DocumentService {
           ...doc.metadata
         }
       }));
-      
+
       console.log(`Processed text file: ${filename}, created ${typedDocs.length} chunks`);
       return typedDocs;
     } catch (error) {
@@ -115,10 +232,7 @@ export class DocumentService {
       const html = await response.text();
       const $ = cheerio.load(html);
 
-      // Remove unwanted elements
       $('script, style, nav, footer, header').remove();
-
-      // Extract text from relevant elements
       const text = $('p, h1, h2, h3, h4, h5, h6')
         .map((i, el) => $(el).text().trim())
         .get()
@@ -138,10 +252,7 @@ export class DocumentService {
         }
       };
 
-      // Split document into chunks
       const splitDocs = await this.textSplitter.splitDocuments([document]);
-      
-      // Convert to our Document type
       const typedDocs: Document[] = splitDocs.map(doc => ({
         pageContent: doc.pageContent,
         metadata: {
@@ -150,7 +261,7 @@ export class DocumentService {
           ...doc.metadata
         }
       }));
-      
+
       console.log(`Scraped website: ${url}, created ${typedDocs.length} chunks`);
       return typedDocs;
     } catch (error) {
@@ -178,7 +289,6 @@ export class DocumentService {
       console.log('🔍 Getting document stats...');
       const stats = await this.documentTracker.getDocumentStats();
       console.log('📊 Document stats:', stats);
-      
       return stats;
     } catch (error) {
       console.error('❌ Error getting document stats:', error);

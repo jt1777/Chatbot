@@ -560,7 +560,7 @@ export default function App() {
                   disabled={isLoading}
                 >
                   <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
-                    {showDeleteMode ? 'CANCEL DELETE' : 'DELETE DOCUMENTS'}
+                    {showDeleteMode ? 'CANCEL DELETE' : 'DELETE'}
                   </Text>
                 </TouchableOpacity>
               </View>

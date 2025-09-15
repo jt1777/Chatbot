@@ -69,8 +69,6 @@ app.post('/api/chat', async (req, res) => {
         console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
         
         if (relevantDocs.length > 0) {
-          console.log('📋 RAG: Document sources:', relevantDocs.map(doc => doc.metadata.source));
-          
           const context = relevantDocs
             .map(doc => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`)
             .join('\n\n---\n\n');
