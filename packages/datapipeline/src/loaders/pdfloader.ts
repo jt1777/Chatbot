@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import * as pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 // Function to detect if PDF is scanned (image-based)
 export async function isScannedPDF(pdfPath: string): Promise<boolean> {

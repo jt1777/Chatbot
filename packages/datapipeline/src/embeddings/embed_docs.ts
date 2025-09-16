@@ -1,5 +1,5 @@
 import * as dotenv from 'dotenv';
-import { VectorStoreService } from '../services/vectorStoreService';
+import { VectorStoreService } from '@chatbot/shared';
 import { Document } from '../types';
 
 // Load environment variables

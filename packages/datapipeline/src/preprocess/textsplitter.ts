@@ -52,7 +52,18 @@ export async function splitDocuments(documents: Document[], options: SplitterOpt
     }
 
     console.log(`Split ${documents.length} documents into ${splitDocs.length} chunks ${languageInfo}`);
-    return splitDocs;
+    
+    // Convert LangChain documents to our Document format
+    const convertedDocs: Document[] = splitDocs.map(doc => ({
+      pageContent: doc.pageContent,
+      metadata: {
+        source: doc.metadata.source || 'unknown',
+        type: doc.metadata.type || 'pdf',
+        ...doc.metadata
+      }
+    }));
+    
+    return convertedDocs;
   } catch (error) {
     console.error('Error splitting documents:', (error as Error).message);
     throw error;
