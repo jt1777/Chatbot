@@ -3,7 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
-import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse } from '@chatbot/shared';
+import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest } from '@chatbot/shared';
+import { AuthService } from './services/authService';
+import { authenticateToken, requireOrgAdmin, requireUser, authService } from './middleware/auth';
 
 dotenv.config();
 
@@ -22,6 +24,7 @@ const conversationHistory = new Map<string, string[]>();
 const ragService = new RAGService();
 const documentService = new DocumentService();
 const semanticDocumentService = new SemanticDocumentService();
+const authServiceInstance = new AuthService();
 
 // Configure multer for file uploads
 const upload = multer({
@@ -41,15 +44,67 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
-// Initialize RAG service and document service
+// Initialize services
 ragService.initialize().catch(console.error);
 documentService.initialize().catch(console.error);
+authServiceInstance.initialize().catch(console.error);
 
 app.get('/', (req, res) => {
   res.send('Backend running');
 });
 
-app.post('/api/chat', async (req, res) => {
+// Admin authentication endpoints
+app.post('/api/auth/admin/register', async (req, res) => {
+  try {
+    const registerData = req.body as AdminRegisterRequest;
+    const result = await authServiceInstance.registerAdmin(registerData);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Admin registration error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/admin/login', async (req, res) => {
+  try {
+    const loginData = req.body as AdminAuthRequest;
+    const result = await authServiceInstance.loginAdmin(loginData);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Admin login error:', error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
+// Client authentication endpoints
+app.post('/api/auth/client/token', async (req, res) => {
+  try {
+    const authData = req.body as ClientAuthRequest;
+    const result = await authServiceInstance.authenticateClient(authData);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Client authentication error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get organizations for client selection
+app.get('/api/orgs', async (req, res) => {
+  try {
+    const orgs = await authServiceInstance.getOrganizations();
+    res.json(orgs);
+  } catch (error: any) {
+    console.error('Get organizations error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Token verification
+app.post('/api/auth/verify', authenticateToken, (req, res) => {
+  res.json({ valid: true, user: (req as any).user });
+});
+
+app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
   const { message, userId = 'default', useRAG = true } = req.body as ChatRequest;
 
   try {
@@ -187,7 +242,7 @@ Answer the user's question using ONLY the information provided above.`;
 });
 
 // Semantic document processing endpoint
-app.post('/api/documents/upload-semantic', upload.single('file'), async (req, res) => {
+app.post('/api/documents/upload-semantic', authenticateToken, requireOrgAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -223,7 +278,7 @@ app.post('/api/documents/upload-semantic', upload.single('file'), async (req, re
 });
 
 // Document upload endpoint
-app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
+app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -261,7 +316,7 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
 });
 
 // Website scraping endpoint
-app.post('/api/documents/scrape', async (req, res) => {
+app.post('/api/documents/scrape', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -290,7 +345,7 @@ app.post('/api/documents/scrape', async (req, res) => {
 });
 
 // RAG Configuration endpoints
-app.get('/api/config/rag', (req, res) => {
+app.get('/api/config/rag', authenticateToken, requireUser, (req, res) => {
   const config = {
     chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
     chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200', 10),
@@ -303,7 +358,7 @@ app.get('/api/config/rag', (req, res) => {
   res.json(config);
 });
 
-app.post('/api/config/rag', (req, res) => {
+app.post('/api/config/rag', authenticateToken, requireOrgAdmin, (req, res) => {
   try {
     const { chunkSize, chunkOverlap, similarityThreshold, useSemanticSearch, ragSearchLimit } = req.body;
     
@@ -339,7 +394,7 @@ app.post('/api/config/rag', (req, res) => {
 });
 
 // Get document statistics
-app.get('/api/documents/stats', async (req, res) => {
+app.get('/api/documents/stats', authenticateToken, requireUser, async (req, res) => {
   try {
     const stats = await documentService.getDocumentStats();
     res.json(stats);
@@ -353,7 +408,7 @@ app.get('/api/documents/stats', async (req, res) => {
 });
 
 // Delete selected documents
-app.delete('/api/documents/delete', async (req, res) => {
+app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const { documentIds } = req.body;
     
@@ -385,7 +440,7 @@ app.delete('/api/documents/delete', async (req, res) => {
 });
 
 // Clear all documents
-app.delete('/api/documents/clear', async (req, res) => {
+app.delete('/api/documents/clear', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     await ragService.clearAllDocuments();
     await documentService.clearAllDocuments();

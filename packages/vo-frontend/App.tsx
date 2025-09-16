@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import axios from 'axios';
 import { API_ENDPOINTS, API_BASE_URL } from './src/config/api';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import AuthScreen from './src/components/AuthScreen';
 
 interface Message {
   text: string;
@@ -26,7 +28,8 @@ interface DocumentStats {
   documents: DocumentRecord[];
 }
 
-export default function App() {
+function MainApp() {
+  const { user, isLoading: authLoading, logout, isAdmin, isClient } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -93,7 +96,7 @@ export default function App() {
     try {
       const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: userMessage.text,
-        userId: 'web-user',
+        userId: user?.id || 'web-user',
         useRAG: strictMode,
       }, {
         headers: {
@@ -482,23 +485,63 @@ export default function App() {
   };
 
   // Load document stats when switching to documents tab
-  React.  useEffect(() => {
+  React.useEffect(() => {
     if (currentTab === 'documents') {
       loadDocumentStats();
       loadRagConfig();
     }
   }, [currentTab]);
 
+  // Show loading screen while checking authentication
+  if (authLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
+        <Text style={{ fontSize: 18, color: '#6B7280' }}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Show auth screen if not authenticated
+  if (!user) {
+    return (
+      <AuthScreen 
+        onAuthSuccess={(token, user) => {
+          // This will be handled by the AuthContext
+        }}
+      />
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
       {/* Header */}
       <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
-        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
-          AI Chatbot with RAG
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+            AI Chatbot with RAG
+          </Text>
+          <TouchableOpacity
+            onPress={logout}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+              Logout
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* User Info */}
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 12 }}>
+          {isAdmin ? `Admin: ${user.email}` : `Client: ${user.phone}`} • Org: {user.orgId}
         </Text>
         
         {/* Tab Navigation */}
-        <View style={{ flexDirection: 'row', marginTop: 12, justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
           <TouchableOpacity
             style={{
               paddingHorizontal: 16,
@@ -513,19 +556,22 @@ export default function App() {
               Chat
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 16,
-              backgroundColor: currentTab === 'documents' ? 'rgba(255,255,255,0.2)' : 'transparent',
-            }}
-            onPress={() => setCurrentTab('documents')}
-          >
-            <Text style={{ color: 'white', fontWeight: currentTab === 'documents' ? 'bold' : 'normal' }}>
-              Documents ({documentStats.count})
-            </Text>
-          </TouchableOpacity>
+          {/* Only show Documents tab for admins */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 16,
+                backgroundColor: currentTab === 'documents' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              }}
+              onPress={() => setCurrentTab('documents')}
+            >
+              <Text style={{ color: 'white', fontWeight: currentTab === 'documents' ? 'bold' : 'normal' }}>
+                Documents ({documentStats.count})
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -1186,5 +1232,13 @@ export default function App() {
       
       <StatusBar style="auto" />
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }
