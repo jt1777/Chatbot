@@ -7,6 +7,7 @@
     "start": "npm run build && node dist/server.js",
     "dev": "ts-node src/server.ts",
     "clear-db": "node scripts/clear-database.js",
+    "cleanup-temp": "node scripts/cleanup-temp.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

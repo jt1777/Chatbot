@@ -5,6 +5,7 @@ import axios from 'axios';
 import multer from 'multer';
 import { RAGService } from './services/ragService';
 import { DocumentService } from './services/documentService';
+import { SemanticDocumentService } from './services/semanticDocumentService';
 import { ChatRequest, ChatResponse } from './types/document';
 
 dotenv.config();
@@ -23,6 +24,7 @@ const conversationHistory = new Map<string, string[]>();
 // Initialize services
 const ragService = new RAGService();
 const documentService = new DocumentService();
+const semanticDocumentService = new SemanticDocumentService();
 
 // Configure multer for file uploads
 const upload = multer({
@@ -59,14 +61,26 @@ app.post('/api/chat', async (req, res) => {
 
     let systemContent = 'You are a helpful AI assistant. Keep your responses conversational and friendly.';
     let sources: string[] = [];
+    const requestId = Date.now();
 
     // If RAG is enabled, search for relevant documents
     if (useRAG) {
       try {
+        console.log(`\n🚀 === NEW RAG REQUEST ${requestId} ===`);
         console.log('🔍 RAG: Searching for documents related to:', message);
-        const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '5', 10);
-        const relevantDocs = await ragService.searchSimilarDocuments(message, searchLimit);
+        console.log('🔍 RAG: RAG_SEARCH_LIMIT env var:', process.env.RAG_SEARCH_LIMIT);
+        const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10);
+        console.log('🔍 RAG: Parsed search limit:', searchLimit);
+        
+        // Use semantic search if enabled
+        const useSemanticSearch = process.env.USE_SEMANTIC_SEARCH === 'true';
+        console.log('🧠 RAG: Using semantic search:', useSemanticSearch);
+        
+        const relevantDocs = useSemanticSearch 
+          ? await semanticDocumentService.semanticSearch(message, searchLimit)
+          : await ragService.searchSimilarDocuments(message, searchLimit);
         console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
+        console.log('📄 RAG: Search limit was', searchLimit);
         
         if (relevantDocs.length > 0) {
           const context = relevantDocs
@@ -88,6 +102,13 @@ Answer the user's question using ONLY the information provided above.`;
 
           sources = relevantDocs.map(doc => doc.metadata.source);
           console.log('✅ RAG: Using context from', sources.length, 'sources');
+          console.log('✅ RAG: Sources are:', sources);
+          
+          // Debug: Show similarity scores for each document
+          console.log('🔍 RAG: Document similarity scores:');
+          relevantDocs.forEach((doc, index) => {
+            console.log(`  ${index + 1}. ${doc.metadata.source} - Score: ${doc.metadata.similarityScore?.toFixed(3) || 'N/A'}`);
+          });
         } else {
           console.log('❌ RAG: No relevant documents found for query');
           // Return early with a clear message when no documents are found
@@ -156,12 +177,50 @@ Answer the user's question using ONLY the information provided above.`;
       sources: sources.length > 0 ? sources : undefined
     };
 
+    console.log(`📤 REQUEST ${requestId} - Sending to frontend - Sources:`, chatResponse.sources);
+    console.log(`✅ === END RAG REQUEST ${requestId} ===\n`);
     res.json(chatResponse);
   } catch (error: any) {
     console.error('xAI API error:', error.response?.data || error.message);
     res.status(500).json({
       error: 'Failed to generate response',
       details: error.response?.data?.error || error.message
+    });
+  }
+});
+
+// Semantic document processing endpoint
+app.post('/api/documents/upload-semantic', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log(`🧠 Processing file with semantic chunking: ${req.file.originalname}`);
+    
+    if (req.file.mimetype === 'text/plain') {
+      const content = req.file.buffer.toString('utf-8');
+      const docs = await semanticDocumentService.semanticChunking(content, req.file.originalname);
+      await semanticDocumentService.vectorStoreService.addDocuments(docs);
+      
+      res.json({
+        message: 'Semantic processing completed',
+        filename: req.file.originalname,
+        chunks: docs.length,
+        type: 'semantic',
+        success: true
+      });
+    } else {
+      res.status(400).json({
+        error: 'Only text files supported for semantic processing currently'
+      });
+    }
+
+  } catch (error: any) {
+    console.error('Semantic upload error:', error);
+    res.status(500).json({
+      error: 'Failed to process file semantically',
+      details: error.message
     });
   }
 });
@@ -233,6 +292,55 @@ app.post('/api/documents/scrape', async (req, res) => {
   }
 });
 
+// RAG Configuration endpoints
+app.get('/api/config/rag', (req, res) => {
+  const config = {
+    chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
+    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200', 10),
+    similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7'),
+    useSemanticSearch: process.env.USE_SEMANTIC_SEARCH === 'true',
+    ragSearchLimit: parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10)
+  };
+  
+  console.log('📋 RAG Config requested:', config);
+  res.json(config);
+});
+
+app.post('/api/config/rag', (req, res) => {
+  try {
+    const { chunkSize, chunkOverlap, similarityThreshold, useSemanticSearch, ragSearchLimit } = req.body;
+    
+    // Update environment variables in memory
+    if (chunkSize !== undefined) process.env.CHUNK_SIZE = chunkSize.toString();
+    if (chunkOverlap !== undefined) process.env.CHUNK_OVERLAP = chunkOverlap.toString();
+    if (similarityThreshold !== undefined) process.env.SIMILARITY_THRESHOLD = similarityThreshold.toString();
+    if (useSemanticSearch !== undefined) process.env.USE_SEMANTIC_SEARCH = useSemanticSearch.toString();
+    if (ragSearchLimit !== undefined) process.env.RAG_SEARCH_LIMIT = ragSearchLimit.toString();
+    
+    const updatedConfig = {
+      chunkSize: parseInt(process.env.CHUNK_SIZE || '1000', 10),
+      chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '200', 10),
+      similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7'),
+      useSemanticSearch: process.env.USE_SEMANTIC_SEARCH === 'true',
+      ragSearchLimit: parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10)
+    };
+    
+    console.log('⚙️ RAG Config updated:', updatedConfig);
+    
+    res.json({
+      message: 'RAG configuration updated successfully',
+      config: updatedConfig
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Error updating RAG config:', error);
+    res.status(500).json({
+      error: 'Failed to update RAG configuration',
+      details: error.message
+    });
+  }
+});
+
 // Get document statistics
 app.get('/api/documents/stats', async (req, res) => {
   try {
@@ -242,6 +350,38 @@ app.get('/api/documents/stats', async (req, res) => {
     console.error('Stats error:', error);
     res.status(500).json({
       error: 'Failed to get document statistics',
+      details: error.message
+    });
+  }
+});
+
+// Delete selected documents
+app.delete('/api/documents/delete', async (req, res) => {
+  try {
+    const { documentIds } = req.body;
+    
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      return res.status(400).json({ error: 'Document IDs are required' });
+    }
+
+    console.log(`🗑️ Delete request received:`, { documentIds, count: documentIds.length });
+    console.log(`🗑️ Document IDs types:`, documentIds.map(id => ({ id, type: typeof id })));
+    
+    // Delete documents by their source names (documentIds are actually source names)
+    const deletedCount = await documentService.deleteDocumentsBySources(documentIds);
+    
+    console.log(`✅ Deleted ${deletedCount} document chunks for sources: ${documentIds.join(', ')}`);
+    
+    res.json({
+      message: `${documentIds.length} document(s) deleted successfully`,
+      deletedCount: deletedCount,
+      deletedIds: documentIds
+    });
+
+  } catch (error: any) {
+    console.error('Delete selected documents error:', error);
+    res.status(500).json({
+      error: 'Failed to delete selected documents',
       details: error.message
     });
   }
@@ -313,13 +453,42 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Handle multiple shutdown signals
-const gracefulShutdown = (signal: string) => {
-  console.log(`Received ${signal}, shutting down gracefully`);
-  server.close(() => {
-    console.log('Server closed');
-  });
-  // Force exit immediately to avoid native module cleanup issues
-  process.exit(0);
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+  
+  try {
+    // Close HTTP server first
+    server.close(async (err) => {
+      if (err) {
+        console.error('❌ Error closing HTTP server:', err);
+      } else {
+        console.log('✅ HTTP server closed');
+      }
+      
+      try {
+        // Close RAG service connections (MongoDB, embeddings)
+        console.log('🔌 Closing RAG service...');
+        await ragService.close();
+        console.log('✅ RAG service closed');
+        
+        console.log('✅ All services closed successfully');
+        process.exit(0);
+      } catch (error) {
+        console.error('❌ Error during service shutdown:', error);
+        process.exit(1);
+      }
+    });
+    
+    // Force exit after 5 seconds if graceful shutdown fails
+    setTimeout(() => {
+      console.error('❌ Forceful shutdown after timeout');
+      process.exit(1);
+    }, 5000);
+    
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error);
+    process.exit(1);
+  }
 };
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));

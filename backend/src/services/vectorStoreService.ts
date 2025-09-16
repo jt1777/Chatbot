@@ -170,6 +170,71 @@ export class VectorStoreService {
     }
   }
 
+  async deleteDocumentsBySource(source: string, collectionName: string = 'business_docs'): Promise<number> {
+    if (!this.isInitialized || !this.client) {
+      throw new Error('VectorStoreService not initialized. Call initialize() first.');
+    }
+
+    try {
+      const db = this.client.db();
+      const result = await db.collection(collectionName).deleteMany({ 
+        'metadata.source': source 
+      });
+      console.log(`Deleted ${result.deletedCount} documents with source: ${source}`);
+      return result.deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by source:', error);
+      throw error;
+    }
+  }
+
+  async deleteDocumentsBySources(sources: string[], collectionName: string = 'business_docs'): Promise<number> {
+    if (!this.isInitialized || !this.client) {
+      throw new Error('VectorStoreService not initialized. Call initialize() first.');
+    }
+
+    try {
+      const db = this.client.db();
+      console.log(`🔍 VectorStore: Deleting documents with sources:`, sources);
+      
+      // First, let's check what documents exist with these sources
+      const existingDocs = await db.collection(collectionName).find({ 
+        'metadata.source': { $in: sources }
+      }).toArray();
+      console.log(`🔍 VectorStore: Found ${existingDocs.length} existing documents to delete`);
+      existingDocs.forEach(doc => {
+        console.log(`  - Source: "${doc.metadata?.source}", Type: ${doc.metadata?.type}`);
+      });
+      
+      const result = await db.collection(collectionName).deleteMany({ 
+        'metadata.source': { $in: sources }
+      });
+      console.log(`✅ VectorStore: Deleted ${result.deletedCount} documents with sources: ${sources.join(', ')}`);
+      return result.deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by sources:', error);
+      throw error;
+    }
+  }
+
+  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf', collectionName: string = 'business_docs'): Promise<number> {
+    if (!this.isInitialized || !this.client) {
+      throw new Error('VectorStoreService not initialized. Call initialize() first.');
+    }
+
+    try {
+      const db = this.client.db();
+      const result = await db.collection(collectionName).deleteMany({ 
+        'metadata.type': type 
+      });
+      console.log(`Deleted ${result.deletedCount} documents with type: ${type}`);
+      return result.deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by type:', error);
+      throw error;
+    }
+  }
+
   async close(): Promise<void> {
     if (this.client) {
       await this.client.close();

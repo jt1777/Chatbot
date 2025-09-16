@@ -26,6 +26,7 @@ export const API_ENDPOINTS = {
   DOCUMENTS_SCRAPE: `${API_BASE_URL}/api/documents/scrape`,
   DOCUMENTS_UPLOAD: `${API_BASE_URL}/api/documents/upload`,
   DOCUMENTS_CLEAR: `${API_BASE_URL}/api/documents/clear`,
+  DOCUMENTS_DELETE: `${API_BASE_URL}/api/documents/delete`,
   DOCUMENTS_SEARCH: `${API_BASE_URL}/api/documents/search`,
 };
 

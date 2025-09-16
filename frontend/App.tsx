@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import axios from 'axios';
-import { API_ENDPOINTS } from './src/config/api';
+import { API_ENDPOINTS, API_BASE_URL } from './src/config/api';
 
 interface Message {
   text: string;
@@ -35,6 +35,17 @@ export default function App() {
   const [showDocumentList, setShowDocumentList] = useState<boolean>(false);
   const [showDeleteMode, setShowDeleteMode] = useState<boolean>(false);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+
+  // RAG Configuration state
+  const [ragConfig, setRagConfig] = useState({
+    chunkSize: 1000,
+    chunkOverlap: 200,
+    similarityThreshold: 0.7,
+    useSemanticSearch: false,
+    ragSearchLimit: 10
+  });
+  const [showRagConfig, setShowRagConfig] = useState(false);
+  const [ragConfigLoading, setRagConfigLoading] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -124,6 +135,49 @@ export default function App() {
       setCurrentPage(1); // Reset to first page when loading new stats
     } catch (error) {
       console.error('❌ Error loading document stats:', error);
+    }
+  };
+
+  // RAG Configuration functions
+  const loadRagConfig = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/config/rag`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      setRagConfig(response.data);
+    } catch (error) {
+      console.error('Error loading RAG config:', error);
+    }
+  };
+
+  const saveRagConfig = async () => {
+    setRagConfigLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/config/rag`, ragConfig, {
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+
+      if (Platform.OS === 'web') {
+        window.alert('RAG configuration saved successfully!');
+      } else {
+        Alert.alert('Success', 'RAG configuration saved successfully!');
+      }
+      console.log('RAG config updated:', response.data.config);
+    } catch (error: any) {
+      console.error('Error saving RAG config:', error);
+      const errorMessage = error.response?.data?.error || 'Error saving RAG configuration';
+      if (Platform.OS === 'web') {
+        window.alert(errorMessage);
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setRagConfigLoading(false);
     }
   };
 
@@ -296,14 +350,17 @@ export default function App() {
     if (confirmed) {
       try {
         setIsLoading(true);
-        // For now, we'll clear all documents since we don't have individual delete endpoints
-        // In a real implementation, you'd send the selected IDs to a delete endpoint
-        await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
+        // Convert Set to Array for the API call
+        const documentIds = Array.from(selectedDocuments);
+        
+        const response = await axios.delete(API_ENDPOINTS.DOCUMENTS_DELETE, {
+          data: { documentIds },
           headers: {
             'ngrok-skip-browser-warning': 'true'
           }
         });
-        window.alert(`${selectedDocuments.size} document(s) deleted successfully`);
+        
+        window.alert(response.data.message || `${selectedDocuments.size} document(s) deleted successfully`);
         await loadDocumentStats();
         setShowDeleteMode(false);
         setSelectedDocuments(new Set());
@@ -425,9 +482,10 @@ export default function App() {
   };
 
   // Load document stats when switching to documents tab
-  React.useEffect(() => {
+  React.  useEffect(() => {
     if (currentTab === 'documents') {
       loadDocumentStats();
+      loadRagConfig();
     }
   }, [currentTab]);
 
@@ -622,7 +680,7 @@ export default function App() {
                   )}
                 </View>
                 {paginatedDocuments.map((doc, index) => {
-                  const documentId = doc._id || doc.source;
+                  const documentId = doc.source; // Use source as the unique identifier for deletion
                   const isSelected = selectedDocuments.has(documentId);
                   
                   return (
@@ -889,6 +947,140 @@ export default function App() {
             <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
               Supports PDF and text files (max 10MB each). Select multiple files at once.
             </Text>
+          </View>
+
+          {/* RAG Configuration */}
+          <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
+            <TouchableOpacity
+              onPress={() => setShowRagConfig(!showRagConfig)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#374151' }}>
+                ⚙️ RAG Configuration
+              </Text>
+              <Text style={{ fontSize: 16, color: '#6B7280' }}>
+                {showRagConfig ? '▼' : '▶'}
+              </Text>
+            </TouchableOpacity>
+            
+            {showRagConfig && (
+              <View style={{ marginTop: 16 }}>
+                {/* Chunk Size */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                    Chunk Size: {ragConfig.chunkSize}
+                  </Text>
+                  <input
+                    type="range"
+                    min="500"
+                    max="3000"
+                    step="100"
+                    value={ragConfig.chunkSize}
+                    onChange={(e) => setRagConfig({...ragConfig, chunkSize: parseInt(e.target.value)})}
+                    style={{ width: '100%' }}
+                  />
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    Controls how large each text chunk is (500-3000 characters)
+                  </Text>
+                </View>
+
+                {/* Chunk Overlap */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                    Chunk Overlap: {ragConfig.chunkOverlap}
+                  </Text>
+                  <input
+                    type="range"
+                    min="50"
+                    max="500"
+                    step="25"
+                    value={ragConfig.chunkOverlap}
+                    onChange={(e) => setRagConfig({...ragConfig, chunkOverlap: parseInt(e.target.value)})}
+                    style={{ width: '100%' }}
+                  />
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    Overlap between chunks to preserve context (50-500 characters)
+                  </Text>
+                </View>
+
+                {/* Similarity Threshold */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                    Similarity Threshold: {ragConfig.similarityThreshold.toFixed(2)}
+                  </Text>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="0.9"
+                    step="0.05"
+                    value={ragConfig.similarityThreshold}
+                    onChange={(e) => setRagConfig({...ragConfig, similarityThreshold: parseFloat(e.target.value)})}
+                    style={{ width: '100%' }}
+                  />
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    Minimum similarity score for relevant documents (0.5-0.9)
+                  </Text>
+                </View>
+
+                {/* RAG Search Limit */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                    Search Results Limit: {ragConfig.ragSearchLimit}
+                  </Text>
+                  <input
+                    type="range"
+                    min="3"
+                    max="20"
+                    step="1"
+                    value={ragConfig.ragSearchLimit}
+                    onChange={(e) => setRagConfig({...ragConfig, ragSearchLimit: parseInt(e.target.value)})}
+                    style={{ width: '100%' }}
+                  />
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    Maximum number of documents to retrieve (3-20)
+                  </Text>
+                </View>
+
+                {/* Use Semantic Search */}
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={ragConfig.useSemanticSearch}
+                      onChange={(e) => setRagConfig({...ragConfig, useSemanticSearch: e.target.checked})}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>
+                      Use Semantic Search
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                    Enable advanced semantic ranking for better relevance
+                  </Text>
+                </View>
+
+                {/* Save Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: ragConfigLoading ? '#D1D5DB' : '#10B981',
+                    padding: 12,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    pointerEvents: ragConfigLoading ? 'none' : 'auto'
+                  }}
+                  onPress={saveRagConfig}
+                  disabled={ragConfigLoading}
+                >
+                  <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                    {ragConfigLoading ? 'Saving...' : 'Save Configuration'}
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, textAlign: 'center' }}>
+                  Changes take effect immediately for new queries
+                </Text>
+              </View>
+            )}
           </View>
 
         </ScrollView>

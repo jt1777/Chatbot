@@ -96,9 +96,13 @@ export class DocumentService {
     const worker = await createWorker('eng');
     const poppler = new Poppler('/opt/homebrew/bin'); // Path to Poppler binaries on ARM64 Mac
     
+    // Declare cleanup variables outside try block
+    let tempPdfPath: string | null = null;
+    let createdImageFiles: string[] = [];
+    
     try {
       // Save PDF buffer to temporary file
-      const tempPdfPath = path.join('./temp', `${filename}_${Date.now()}.pdf`);
+      tempPdfPath = path.join('./temp', `${filename}_${Date.now()}.pdf`);
       await fs.writeFile(tempPdfPath, buffer);
       console.log(`Saved PDF to: ${tempPdfPath}`);
 
@@ -136,6 +140,9 @@ export class DocumentService {
         throw new Error(`No image files were generated. Expected files starting with: ${prefixFilename}`);
       }
       
+      // Store image files for cleanup
+      createdImageFiles = imageFiles.map(file => path.join(outputDir, file));
+      
       let fullText = '';
       let totalConfidence = 0;
 
@@ -157,30 +164,37 @@ export class DocumentService {
         
         fullText += text + '\n\n--- Page Break ---\n\n';
         totalConfidence += confidence;
-        
-        // Clean up image file
-        try {
-          await fs.unlink(imagePath);
-        } catch (cleanupError) {
-          console.warn(`Could not delete temp file ${imagePath}:`, cleanupError);
-        }
-      }
-
-      // Clean up temp PDF file
-      try {
-        await fs.unlink(tempPdfPath);
-      } catch (cleanupError) {
-        console.warn(`Could not delete temp PDF file ${tempPdfPath}:`, cleanupError);
       }
 
       const avgConfidence = totalConfidence / imageFiles.length;
       console.log(`🎉 OCR completed with average confidence: ${avgConfidence.toFixed(2)}%`);
       
-      await worker.terminate();
       return { text: fullText.trim(), confidence: avgConfidence };
     } catch (error) {
-      await worker.terminate();
       throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Always clean up, regardless of success or failure
+      await worker.terminate();
+      
+      // Clean up temp PDF file
+      if (tempPdfPath) {
+        try {
+          await fs.unlink(tempPdfPath);
+          console.log(`🧹 Cleaned up temp PDF`);
+        } catch (cleanupError) {
+          console.warn(`Could not delete temp PDF file:`, cleanupError);
+        }
+      }
+
+      // Clean up image files
+      for (const imagePath of createdImageFiles) {
+        try {
+          await fs.unlink(imagePath);
+          console.log(`🧹 Cleaned up image: ${path.basename(imagePath)}`);
+        } catch (cleanupError) {
+          console.warn(`Could not delete image file ${path.basename(imagePath)}:`, cleanupError);
+        }
+      }
     }
   }
 
@@ -298,5 +312,51 @@ export class DocumentService {
 
   async clearAllDocuments(): Promise<void> {
     await this.documentTracker.clearAllDocuments();
+  }
+
+  async deleteDocumentsBySource(source: string): Promise<number> {
+    try {
+      const deletedCount = await this.vectorStoreService.deleteDocumentsBySource(source);
+      await this.documentTracker.removeDocument(source);
+      console.log(`Deleted ${deletedCount} document chunks for source: ${source}`);
+      return deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by source:', error);
+      throw error;
+    }
+  }
+
+  async deleteDocumentsBySources(sources: string[]): Promise<number> {
+    try {
+      const deletedCount = await this.vectorStoreService.deleteDocumentsBySources(sources);
+      for (const source of sources) {
+        await this.documentTracker.removeDocument(source);
+      }
+      console.log(`Deleted ${deletedCount} document chunks for sources: ${sources.join(', ')}`);
+      return deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by sources:', error);
+      throw error;
+    }
+  }
+
+  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf'): Promise<number> {
+    try {
+      const deletedCount = await this.vectorStoreService.deleteDocumentsByType(type);
+      // Note: DocumentTracker doesn't track by type, so we'll need to get sources by type first
+      const stats = await this.documentTracker.getDocumentStats();
+      const sourcesToRemove = stats.documents
+        .filter((doc: any) => doc.type === type)
+        .map((doc: any) => doc.source);
+      
+      for (const source of sourcesToRemove) {
+        await this.documentTracker.removeDocument(source);
+      }
+      console.log(`Deleted ${deletedCount} document chunks for type: ${type}`);
+      return deletedCount;
+    } catch (error) {
+      console.error('Error deleting documents by type:', error);
+      throw error;
+    }
   }
 }

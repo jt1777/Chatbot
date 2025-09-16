@@ -85,6 +85,33 @@ export class DocumentTracker {
     console.log('🗑️ Cleared all document records');
   }
 
+  async removeDocument(source: string): Promise<void> {
+    if (!this.collection) {
+      throw new Error('DocumentTracker not initialized');
+    }
+
+    console.log(`🔍 DocumentTracker: Attempting to remove document with source: "${source}"`);
+    
+    // First check if the document exists
+    const existingDoc = await this.collection.findOne({ source });
+    if (existingDoc) {
+      console.log(`🔍 DocumentTracker: Found document to remove:`, {
+        source: existingDoc.source,
+        type: existingDoc.type,
+        chunksCount: existingDoc.chunksCount
+      });
+    } else {
+      console.log(`⚠️ DocumentTracker: No document found with source: "${source}"`);
+    }
+    
+    const result = await this.collection.deleteOne({ source });
+    if (result.deletedCount > 0) {
+      console.log(`✅ DocumentTracker: Removed document record: ${source}`);
+    } else {
+      console.log(`⚠️ DocumentTracker: Document record not found: ${source}`);
+    }
+  }
+
   async close(): Promise<void> {
     if (this.client) {
       await this.client.close();
