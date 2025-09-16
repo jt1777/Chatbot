@@ -2,7 +2,7 @@ export interface User {
   id: string;
   orgId: string;
   role: 'org_admin' | 'client';
-  email?: string; // Only for admins
+  email: string; // Required but can be empty string for clients
   phone?: string; // Only for clients
   passwordHash?: string; // Only for admins
   createdAt: Date;

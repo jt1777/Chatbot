@@ -48,7 +48,7 @@ export class SemanticDocumentService {
   /**
    * Semantic chunking using similarity-based splitting
    */
-  async semanticChunking(text: string, filename: string): Promise<Document[]> {
+  async semanticChunking(text: string, filename: string, orgId?: string): Promise<Document[]> {
     console.log(`🧠 Starting semantic chunking for: ${filename}`);
     
     try {
@@ -66,6 +66,7 @@ export class SemanticDocumentService {
           chunkType: 'semantic',
           chunkSize: chunk.length,
           uploadDate: new Date().toISOString(),
+          ...(orgId && { orgId }),
           // Add semantic indicators
           hasQuestions: chunk.includes('?'),
           hasNumbers: /\d+/.test(chunk),
@@ -86,7 +87,7 @@ export class SemanticDocumentService {
   /**
    * Enhanced document processing with semantic awareness
    */
-  async processDocumentWithSemantics(filePath: string, filename: string): Promise<Document[]> {
+  async processDocumentWithSemantics(filePath: string, filename: string, orgId?: string): Promise<Document[]> {
     try {
       console.log(`🔍 Processing document with semantics: ${filename}`);
       
@@ -98,10 +99,10 @@ export class SemanticDocumentService {
       }
 
       // Use semantic chunking
-      const semanticDocs = await this.semanticChunking(content, filename);
+      const semanticDocs = await this.semanticChunking(content, filename, orgId);
       
       // Add to vector store
-      await this.vectorStoreService.addDocuments(semanticDocs);
+      await this.vectorStoreService.addDocuments(semanticDocs, orgId || 'default');
       console.log(`✅ Added ${semanticDocs.length} semantic chunks to vector store`);
 
       return semanticDocs;
@@ -115,13 +116,13 @@ export class SemanticDocumentService {
   /**
    * Enhanced similarity search with semantic ranking
    */
-  async semanticSearch(query: string, limit: number = 5): Promise<Document[]> {
+  async semanticSearch(query: string, orgId: string, limit: number = 5): Promise<Document[]> {
     console.log(`🔍 Performing semantic search for: "${query}"`);
     
     try {
       // Get more results initially for re-ranking
       const initialLimit = Math.min(limit * 3, 20);
-      const results = await this.vectorStoreService.searchSimilarDocuments(query, initialLimit);
+      const results = await this.vectorStoreService.searchSimilarDocuments(query, orgId, initialLimit);
       
       console.log(`📊 Retrieved ${results.length} initial results for semantic ranking`);
 

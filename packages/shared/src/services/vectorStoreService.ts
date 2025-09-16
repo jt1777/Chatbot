@@ -35,7 +35,7 @@ export class VectorStoreService {
     return VectorStoreService.instance;
   }
 
-  async initialize(collectionName: string = 'business_docs'): Promise<void> {
+  async initialize(orgId: string, collectionName: string = 'business_docs'): Promise<void> {
     if (this.isInitialized) {
       console.log('VectorStoreService already initialized');
       return;
@@ -47,10 +47,14 @@ export class VectorStoreService {
         throw new Error('MONGODB_URI environment variable is required');
       }
 
+      // Create organization-specific collection name
+      const orgCollectionName = `${collectionName}_${orgId}`;
+      console.log(`🔧 Initializing vector store for org ${orgId} with collection: ${orgCollectionName}`);
+
       this.client = new MongoClient(mongoUri);
       await this.client.connect();
       const db = this.client.db();
-      const collection = db.collection(collectionName);
+      const collection = db.collection(orgCollectionName);
 
       this.vectorStore = new MongoDBAtlasVectorSearch(this.embeddings, {
         collection: collection,
@@ -70,7 +74,7 @@ export class VectorStoreService {
     }
   }
 
-  async searchSimilarDocuments(query: string, limit: number = 5): Promise<Document[]> {
+  async searchSimilarDocuments(query: string, orgId: string, limit: number = 5): Promise<Document[]> {
     if (!this.isInitialized || !this.vectorStore) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
@@ -115,14 +119,23 @@ export class VectorStoreService {
     }
   }
 
-  async addDocuments(documents: Document[]): Promise<void> {
+  async addDocuments(documents: Document[], orgId: string): Promise<void> {
     if (!this.isInitialized || !this.vectorStore) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
-      await this.vectorStore.addDocuments(documents);
-      console.log(`Added ${documents.length} documents to vector store`);
+      // Ensure all documents have the organization ID in metadata
+      const documentsWithOrgId = documents.map(doc => ({
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          orgId: orgId
+        }
+      }));
+
+      await this.vectorStore.addDocuments(documentsWithOrgId);
+      console.log(`Added ${documents.length} documents to vector store for org ${orgId}`);
     } catch (error) {
       console.error('Error adding documents:', error);
       throw error;

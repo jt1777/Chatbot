@@ -33,7 +33,7 @@ export class DocumentService {
     }
   }
 
-  async processPDFBuffer(buffer: Buffer, filename: string): Promise<Document[]> {
+  async processPDFBuffer(buffer: Buffer, filename: string, orgId?: string): Promise<Document[]> {
     try {
       let text: string;
       let extractionMethod: 'text' | 'ocr' = 'text';
@@ -68,7 +68,8 @@ export class DocumentService {
           type: 'upload',
           uploadDate: new Date().toISOString(),
           extractionMethod,
-          ocrConfidence
+          ocrConfidence,
+          ...(orgId && { orgId })
         }
       };
 
@@ -198,7 +199,7 @@ export class DocumentService {
     }
   }
 
-  async processTextFile(content: string, filename: string): Promise<Document[]> {
+  async processTextFile(content: string, filename: string, orgId?: string): Promise<Document[]> {
     try {
       if (!content || content.trim().length < 10) {
         throw new Error('Text file appears to be empty');
@@ -209,7 +210,8 @@ export class DocumentService {
         metadata: {
           source: filename,
           type: 'upload',
-          uploadDate: new Date().toISOString()
+          uploadDate: new Date().toISOString(),
+          ...(orgId && { orgId })
         }
       };
 
@@ -219,7 +221,8 @@ export class DocumentService {
         metadata: {
           source: doc.metadata.source || filename,
           type: doc.metadata.type || 'upload',
-          ...doc.metadata
+          ...doc.metadata,
+          ...(orgId && { orgId })
         }
       }));
 
@@ -231,7 +234,7 @@ export class DocumentService {
     }
   }
 
-  async scrapeWebsite(url: string): Promise<Document[]> {
+  async scrapeWebsite(url: string, orgId?: string): Promise<Document[]> {
     try {
       const response = await fetch(url, {
         headers: {
@@ -262,7 +265,8 @@ export class DocumentService {
         metadata: {
           source: url,
           type: 'web',
-          scrapedDate: new Date().toISOString()
+          scrapedDate: new Date().toISOString(),
+          ...(orgId && { orgId })
         }
       };
 
@@ -272,7 +276,8 @@ export class DocumentService {
         metadata: {
           source: doc.metadata.source || url,
           type: doc.metadata.type || 'web',
-          ...doc.metadata
+          ...doc.metadata,
+          ...(orgId && { orgId })
         }
       }));
 
@@ -284,24 +289,24 @@ export class DocumentService {
     }
   }
 
-  async addDocumentsToVectorStore(documents: Document[]): Promise<void> {
+  async addDocumentsToVectorStore(documents: Document[], orgId: string): Promise<void> {
     try {
-      await this.vectorStoreService.addDocuments(documents);
-      console.log(`Added ${documents.length} documents to vector store`);
+      await this.vectorStoreService.addDocuments(documents, orgId);
+      console.log(`Added ${documents.length} documents to vector store for org ${orgId}`);
     } catch (error) {
       console.error('Error adding documents to vector store:', error);
       throw error;
     }
   }
 
-  async trackDocument(source: string, type: 'upload' | 'web', chunksCount: number): Promise<void> {
-    await this.documentTracker.addDocument(source, type, chunksCount);
+  async trackDocument(source: string, type: 'upload' | 'web', chunksCount: number, orgId: string): Promise<void> {
+    await this.documentTracker.addDocument(source, type, chunksCount, orgId);
   }
 
-  async getDocumentStats(): Promise<{ count: number; documents: any[] }> {
+  async getDocumentStats(orgId: string): Promise<{ count: number; documents: any[] }> {
     try {
-      console.log('🔍 Getting document stats...');
-      const stats = await this.documentTracker.getDocumentStats();
+      console.log(`🔍 Getting document stats for org ${orgId}...`);
+      const stats = await this.documentTracker.getDocumentStats(orgId);
       console.log('📊 Document stats:', stats);
       return stats;
     } catch (error) {
@@ -310,8 +315,12 @@ export class DocumentService {
     }
   }
 
-  async clearAllDocuments(): Promise<void> {
-    await this.documentTracker.clearAllDocuments();
+  async clearAllDocuments(orgId?: string): Promise<void> {
+    if (orgId) {
+      await this.documentTracker.clearAllDocuments(orgId);
+    } else {
+      await this.documentTracker.clearAllDocuments();
+    }
   }
 
   async deleteDocumentsBySource(source: string): Promise<number> {
@@ -340,11 +349,11 @@ export class DocumentService {
     }
   }
 
-  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf'): Promise<number> {
+  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf', orgId?: string): Promise<number> {
     try {
       const deletedCount = await this.vectorStoreService.deleteDocumentsByType(type);
       // Note: DocumentTracker doesn't track by type, so we'll need to get sources by type first
-      const stats = await this.documentTracker.getDocumentStats();
+      const stats = await this.documentTracker.getDocumentStats(orgId || 'default');
       const sourcesToRemove = stats.documents
         .filter((doc: any) => doc.type === type)
         .map((doc: any) => doc.source);

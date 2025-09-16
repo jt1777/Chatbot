@@ -158,6 +158,7 @@ export class AuthService {
           id: userId,
           orgId,
           role: 'client',
+          email: `client_${userId}@temp.local`, // Unique email for each client
           phone,
           createdAt: new Date(),
           updatedAt: new Date()

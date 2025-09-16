@@ -3,6 +3,7 @@ export interface Document {
   metadata: {
     source: string;
     type: 'web' | 'pdf' | 'upload';
+    orgId?: string; // Organization ID for multi-tenancy (optional during creation)
     [key: string]: any;
   };
 }
@@ -15,6 +16,7 @@ export interface ChatMessage {
 export interface ChatRequest {
   message: string;
   userId?: string;
+  orgId: string; // Organization ID for multi-tenancy
   useRAG?: boolean;
 }
 

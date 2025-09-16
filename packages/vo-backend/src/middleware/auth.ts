@@ -4,9 +4,6 @@ import { JWTPayload, AuthenticatedRequest } from '@chatbot/shared';
 
 const authService = new AuthService();
 
-// Initialize auth service
-authService.initialize().catch(console.error);
-
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;

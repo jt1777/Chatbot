@@ -12,6 +12,9 @@ dotenv.config();
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
 
+// Initialize auth service after environment variables are loaded
+authService.initialize().catch(console.error);
+
 // Check for xAI API key
 if (!process.env.XAI_API_KEY) {
   throw new Error('XAI_API_KEY environment variable is required');
@@ -45,7 +48,6 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize services
-ragService.initialize().catch(console.error);
 documentService.initialize().catch(console.error);
 authServiceInstance.initialize().catch(console.error);
 
@@ -106,6 +108,7 @@ app.post('/api/auth/verify', authenticateToken, (req, res) => {
 
 app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
   const { message, userId = 'default', useRAG = true } = req.body as ChatRequest;
+  const user = (req as any).user; // Get user from auth middleware
 
   try {
     // Get conversation history for context
@@ -120,17 +123,21 @@ app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
       try {
         console.log(`\n🚀 === NEW RAG REQUEST ${requestId} ===`);
         console.log('🔍 RAG: Searching for documents related to:', message);
+        console.log('🔍 RAG: Organization:', user.orgId);
         console.log('🔍 RAG: RAG_SEARCH_LIMIT env var:', process.env.RAG_SEARCH_LIMIT);
         const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10);
         console.log('🔍 RAG: Parsed search limit:', searchLimit);
+        
+        // Initialize RAG service for this organization
+        await ragService.initialize(user.orgId);
         
         // Use semantic search if enabled
         const useSemanticSearch = process.env.USE_SEMANTIC_SEARCH === 'true';
         console.log('🧠 RAG: Using semantic search:', useSemanticSearch);
         
         const relevantDocs = useSemanticSearch 
-          ? await semanticDocumentService.semanticSearch(message, searchLimit)
-          : await ragService.searchSimilarDocuments(message, searchLimit);
+          ? await semanticDocumentService.semanticSearch(message, user.orgId, searchLimit)
+          : await ragService.searchSimilarDocuments(message, user.orgId, searchLimit);
         console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
         console.log('📄 RAG: Search limit was', searchLimit);
         
@@ -251,9 +258,10 @@ app.post('/api/documents/upload-semantic', authenticateToken, requireOrgAdmin, u
     console.log(`🧠 Processing file with semantic chunking: ${req.file.originalname}`);
     
     if (req.file.mimetype === 'text/plain') {
+      const user = (req as any).user; // Get user from auth middleware
       const content = req.file.buffer.toString('utf-8');
-      const docs = await semanticDocumentService.semanticChunking(content, req.file.originalname);
-      await semanticDocumentService.vectorStoreService.addDocuments(docs);
+      const docs = await semanticDocumentService.semanticChunking(content, req.file.originalname, user.orgId);
+      await semanticDocumentService.vectorStoreService.addDocuments(docs, user.orgId);
       
       res.json({
         message: 'Semantic processing completed',
@@ -284,22 +292,34 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.sin
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    const user = (req as any).user; // Get user from auth middleware
     const { originalname, mimetype, buffer } = req.file;
     let documents;
 
     if (mimetype === 'application/pdf') {
-      documents = await documentService.processPDFBuffer(buffer, originalname);
+      documents = await documentService.processPDFBuffer(buffer, originalname, user.orgId);
     } else if (mimetype === 'text/plain') {
       const content = buffer.toString('utf-8');
-      documents = await documentService.processTextFile(content, originalname);
+      documents = await documentService.processTextFile(content, originalname, user.orgId);
     } else {
       return res.status(400).json({ error: 'Unsupported file type' });
     }
 
-    await documentService.addDocumentsToVectorStore(documents);
+    // Add organization context to documents
+    const documentsWithOrgId = documents.map(doc => ({
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        orgId: user.orgId
+      }
+    }));
+
+    // Initialize RAG service for this organization and add documents
+    await ragService.initialize(user.orgId);
+    await ragService.addDocuments(documentsWithOrgId, user.orgId);
     
     // Track the document
-    await documentService.trackDocument(originalname, 'upload', documents.length);
+    await documentService.trackDocument(originalname, 'upload', documents.length, user.orgId);
 
     res.json({
       message: 'File uploaded and processed successfully',
@@ -319,16 +339,29 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.sin
 app.post('/api/documents/scrape', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const { url } = req.body;
+    const user = (req as any).user; // Get user from auth middleware
     
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const documents = await documentService.scrapeWebsite(url);
-    await documentService.addDocumentsToVectorStore(documents);
+    const documents = await documentService.scrapeWebsite(url, user.orgId);
+    
+    // Add organization context to documents
+    const documentsWithOrgId = documents.map(doc => ({
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        orgId: user.orgId
+      }
+    }));
+
+    // Initialize RAG service for this organization and add documents
+    await ragService.initialize(user.orgId);
+    await ragService.addDocuments(documentsWithOrgId, user.orgId);
     
     // Track the document
-    await documentService.trackDocument(url, 'web', documents.length);
+    await documentService.trackDocument(url, 'web', documents.length, user.orgId);
 
     res.json({
       message: 'Website scraped and processed successfully',
@@ -396,7 +429,8 @@ app.post('/api/config/rag', authenticateToken, requireOrgAdmin, (req, res) => {
 // Get document statistics
 app.get('/api/documents/stats', authenticateToken, requireUser, async (req, res) => {
   try {
-    const stats = await documentService.getDocumentStats();
+    const user = (req as any).user; // Get user from auth middleware
+    const stats = await documentService.getDocumentStats(user.orgId);
     res.json(stats);
   } catch (error: any) {
     console.error('Stats error:', error);

@@ -8,6 +8,7 @@ export interface DocumentRecord {
   url?: string;
   uploadDate: string;
   chunksCount: number;
+  orgId: string; // Organization ID for multi-tenancy
 }
 
 export class DocumentTracker {
@@ -28,17 +29,17 @@ export class DocumentTracker {
     console.log('📋 Document Tracker initialized');
   }
 
-  async addDocument(source: string, type: 'upload' | 'web', chunksCount: number): Promise<void> {
+  async addDocument(source: string, type: 'upload' | 'web', chunksCount: number, orgId: string): Promise<void> {
     if (!this.collection) {
       throw new Error('DocumentTracker not initialized');
     }
 
-    const existingDoc = await this.collection.findOne({ source });
+    const existingDoc = await this.collection.findOne({ source, orgId });
     
     if (existingDoc) {
       // Update existing document with new chunk count
       await this.collection.updateOne(
-        { source },
+        { source, orgId },
         { 
           $set: { 
             chunksCount,
@@ -46,7 +47,7 @@ export class DocumentTracker {
           }
         }
       );
-      console.log(`📝 Updated document: ${source}`);
+      console.log(`📝 Updated document: ${source} for org ${orgId}`);
     } else {
       // Add new document
       const documentRecord: DocumentRecord = {
@@ -55,20 +56,21 @@ export class DocumentTracker {
         filename: type === 'upload' ? source : undefined,
         url: type === 'web' ? source : undefined,
         uploadDate: new Date().toISOString(),
-        chunksCount
+        chunksCount,
+        orgId
       };
 
       await this.collection.insertOne(documentRecord);
-      console.log(`📝 Added new document: ${source}`);
+      console.log(`📝 Added new document: ${source} for org ${orgId}`);
     }
   }
 
-  async getDocumentStats(): Promise<{ count: number; documents: DocumentRecord[] }> {
+  async getDocumentStats(orgId: string): Promise<{ count: number; documents: DocumentRecord[] }> {
     if (!this.collection) {
       throw new Error('DocumentTracker not initialized');
     }
 
-    const documents = await this.collection.find({}).sort({ uploadDate: -1 }).toArray();
+    const documents = await this.collection.find({ orgId }).sort({ uploadDate: -1 }).toArray();
     
     return {
       count: documents.length,
@@ -76,13 +78,14 @@ export class DocumentTracker {
     };
   }
 
-  async clearAllDocuments(): Promise<void> {
+  async clearAllDocuments(orgId?: string): Promise<void> {
     if (!this.collection) {
       throw new Error('DocumentTracker not initialized');
     }
 
-    await this.collection.deleteMany({});
-    console.log('🗑️ Cleared all document records');
+    const filter = orgId ? { orgId } : {};
+    await this.collection.deleteMany(filter);
+    console.log(`🗑️ Cleared all document records${orgId ? ` for org ${orgId}` : ''}`);
   }
 
   async removeDocument(source: string): Promise<void> {

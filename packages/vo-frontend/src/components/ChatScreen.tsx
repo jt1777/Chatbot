@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Message {
   text: string;
@@ -21,6 +22,7 @@ interface Message {
 }
 
 const ChatScreen: React.FC = () => {
+  const { user, token } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -42,7 +44,13 @@ const ChatScreen: React.FC = () => {
     try {
       const response = await axios.post('http://localhost:3002/api/chat', {
         message: userMessage.text,
-        userId: 'mobile-user', // For conversation persistence
+        userId: user?.id || 'mobile-user', // For conversation persistence
+        orgId: user?.orgId, // Organization context
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       const botMessage: Message = {

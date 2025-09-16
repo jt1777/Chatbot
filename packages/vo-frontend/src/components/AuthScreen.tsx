@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Organization {
   orgId: string;
@@ -14,6 +15,7 @@ interface AuthScreenProps {
 }
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+  const { login, isLoading: authContextLoading } = useAuth();
   const [authMode, setAuthMode] = useState<'admin' | 'client'>('client');
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
@@ -21,6 +23,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const isProcessing = isLoading || authContextLoading;
 
   // Load organizations on component mount
   useEffect(() => {
@@ -51,19 +54,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return;
     }
 
-    setIsLoading(true);
     try {
       const response = await axios.post(`${API_BASE_URL}/api/auth/client/token`, {
         phone: phone.trim(),
         orgId: selectedOrgId
       });
 
-      onAuthSuccess(response.data.token, response.data.user);
+      await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client auth error:', error);
       Alert.alert('Error', error.response?.data?.error || 'Authentication failed');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -80,7 +80,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         password: password.trim()
       });
 
-      onAuthSuccess(response.data.token, response.data.user);
+      await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Admin login error:', error);
       Alert.alert('Error', error.response?.data?.error || 'Login failed');
@@ -90,24 +90,31 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   const handleAdminRegister = async () => {
+    console.log('Register button clicked!', { email: email.trim(), password: password.trim() });
+    
     if (!email.trim() || !password.trim()) {
+      console.log('Validation failed: missing email or password');
       Alert.alert('Error', 'Please enter both email and password');
       return;
     }
 
     if (password.length < 6) {
+      console.log('Validation failed: password too short');
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
+    console.log('Starting registration...');
     setIsLoading(true);
     try {
+      console.log('Making API call to:', `${API_BASE_URL}/api/auth/admin/register`);
       const response = await axios.post(`${API_BASE_URL}/api/auth/admin/register`, {
         email: email.trim(),
         password: password.trim()
       });
 
-      onAuthSuccess(response.data.token, response.data.user);
+      console.log('Registration successful:', response.data);
+      await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Admin registration error:', error);
       Alert.alert('Error', error.response?.data?.error || 'Registration failed');
@@ -244,26 +251,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                editable={!isLoading}
+                editable={!isProcessing}
               />
             </View>
 
             <TouchableOpacity
               style={{
-                backgroundColor: selectedOrgId && phone.trim() && !isLoading ? '#3B82F6' : '#D1D5DB',
+                backgroundColor: selectedOrgId && phone.trim() && !isProcessing ? '#3B82F6' : '#D1D5DB',
                 paddingVertical: 12,
                 borderRadius: 8,
                 alignItems: 'center',
               }}
               onPress={handleClientAuth}
-              disabled={!selectedOrgId || !phone.trim() || isLoading}
+                disabled={!selectedOrgId || !phone.trim() || isProcessing}
             >
               <Text style={{ 
-                color: selectedOrgId && phone.trim() && !isLoading ? 'white' : '#6B7280', 
+                color: selectedOrgId && phone.trim() && !isProcessing ? 'white' : '#6B7280', 
                 fontSize: 16, 
                 fontWeight: '600' 
               }}>
-                {isLoading ? 'Connecting...' : 'Start Chatting'}
+                {isProcessing ? 'Connecting...' : 'Start Chatting'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -298,7 +305,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                editable={!isLoading}
+                editable={!isProcessing}
               />
             </View>
 
@@ -320,7 +327,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                editable={!isLoading}
+                editable={!isProcessing}
               />
             </View>
 
@@ -329,40 +336,40 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: email.trim() && password.trim() && !isLoading ? '#3B82F6' : '#D1D5DB',
+                  backgroundColor: email.trim() && password.trim() && !isProcessing ? '#3B82F6' : '#D1D5DB',
                   paddingVertical: 12,
                   borderRadius: 8,
                   alignItems: 'center',
                 }}
                 onPress={handleAdminLogin}
-                disabled={!email.trim() || !password.trim() || isLoading}
+                disabled={!email.trim() || !password.trim() || isProcessing}
               >
                 <Text style={{ 
-                  color: email.trim() && password.trim() && !isLoading ? 'white' : '#6B7280', 
+                  color: email.trim() && password.trim() && !isProcessing ? 'white' : '#6B7280', 
                   fontSize: 16, 
                   fontWeight: '600' 
                 }}>
-                  {isLoading ? 'Signing In...' : 'Sign In'}
+                  {isProcessing ? 'Signing In...' : 'Sign In'}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={{
                   flex: 1,
-                  backgroundColor: email.trim() && password.trim() && !isLoading ? '#10B981' : '#D1D5DB',
+                  backgroundColor: email.trim() && password.trim() && !isProcessing ? '#10B981' : '#D1D5DB',
                   paddingVertical: 12,
                   borderRadius: 8,
                   alignItems: 'center',
                 }}
                 onPress={handleAdminRegister}
-                disabled={!email.trim() || !password.trim() || isLoading}
+                disabled={!email.trim() || !password.trim() || isProcessing}
               >
                 <Text style={{ 
-                  color: email.trim() && password.trim() && !isLoading ? 'white' : '#6B7280', 
+                  color: email.trim() && password.trim() && !isProcessing ? 'white' : '#6B7280', 
                   fontSize: 16, 
                   fontWeight: '600' 
                 }}>
-                  {isLoading ? 'Creating...' : 'Register'}
+                  {isProcessing ? 'Creating...' : 'Register'}
                 </Text>
               </TouchableOpacity>
             </View>
