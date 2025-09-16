@@ -3,10 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
-import { RAGService } from './services/ragService';
-import { DocumentService } from './services/documentService';
-import { SemanticDocumentService } from './services/semanticDocumentService';
-import { ChatRequest, ChatResponse } from './types/document';
+import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse } from '@chatbot/shared';
 
 dotenv.config();
 

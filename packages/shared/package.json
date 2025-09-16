@@ -1,5 +1,5 @@
 {
-  "name": "datapipeline",
+  "name": "@chatbot/shared",
   "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,7 +11,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Shared services and types for Chatbot VO",
   "dependencies": {
     "@huggingface/transformers": "^3.7.2",
     "@langchain/community": "^0.3.55",
@@ -22,7 +22,8 @@
     "dotenv": "^16.4.5",
     "mongodb": "^6.19.0",
     "pdf-parse": "^1.1.1",
-    "pdfjs-dist": "^5.4.149"
+    "pdfjs-dist": "^5.4.149",
+    "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",

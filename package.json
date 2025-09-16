@@ -1,0 +1,23 @@
+{
+  "name": "chatbot-vo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI Chatbot with RAG - Organizational Version (VO)",
+  "scripts": {
+    "dev:backend": "cd packages/vo-backend && npm run dev",
+    "dev:frontend": "cd packages/vo-frontend && npm start",
+    "dev:datapipeline": "cd packages/datapipeline && npm run dev",
+    "dev:shared": "cd packages/shared && npm run build",
+    "build:all": "cd packages/shared && npm run build && cd ../vo-backend && npm run build && cd ../datapipeline && npm run build",
+    "install:all": "cd packages/shared && npm install && cd ../vo-backend && npm install && cd ../vo-frontend && npm install && cd ../datapipeline && npm install",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist",
+    "test": "npm run test --workspaces"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

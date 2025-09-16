@@ -19,8 +19,8 @@ out/
 .env.production.local
 
 # Data directories - contains user files and processed content
-datapipeline/data/raw/
-datapipeline/data/processed/
+packages/datapipeline/data/raw/
+packages/datapipeline/data/processed/
 
 # Logs
 *.log

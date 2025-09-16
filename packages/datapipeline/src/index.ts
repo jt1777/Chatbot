@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import { scrapeAndSave } from './loaders/webscrape';
 import { convertPDFsToText } from './loaders/pdfloader';
 import { splitDocuments } from './preprocess/textsplitter';
-import { VectorStoreService } from './services/vectorStoreService';
+import { VectorStoreService } from '@chatbot/shared';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Document, PipelineOptions } from './types';

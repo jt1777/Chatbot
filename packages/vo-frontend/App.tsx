@@ -167,7 +167,7 @@ export default function App() {
       } else {
         Alert.alert('Success', 'RAG configuration saved successfully!');
       }
-      console.log('RAG config updated:', response.data.config);
+      //console.log('RAG config updated:', response.data.config);
     } catch (error: any) {
       console.error('Error saving RAG config:', error);
       const errorMessage = error.response?.data?.error || 'Error saving RAG configuration';
