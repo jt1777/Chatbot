@@ -90,11 +90,7 @@ PORT=3002
 **Note**: RAG configuration is now managed through the API/UI configuration system, not environment variables.
 
 ### Data Pipeline (.env)
-```bash
-# Same as backend - copy from backend/.env
-XAI_API_KEY=your_xai_api_key_here
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
-```
+Not required.
 
 ## MongoDB Atlas Setup
 
