@@ -20,5 +20,8 @@ export type {
   CreateInviteRequest,
   InviteResponse,
   JoinOrganizationRequest,
-  UpdateOrgDescriptionRequest
+  UpdateOrgDescriptionRequest,
+  OrganizationMembership,
+  SwitchOrganizationRequest,
+  SwitchOrganizationResponse
 } from './types/auth';

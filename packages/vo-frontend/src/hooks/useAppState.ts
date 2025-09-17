@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDocumentManagement } from './useDocumentManagement';
 import { useChat } from './useChat';
 import { useOrganization } from './useOrganization';
@@ -22,15 +22,36 @@ export const useAppState = (token: string | null, userId: string | undefined, is
       organization.loadActiveInvites();
     } else if (currentTab === 'profile') {
       organization.loadOrganizationInfo();
+      organization.loadUserOrganizations();
     }
-  }, [currentTab, documentManagement, organization]);
+  }, [currentTab]);
 
   // Load client organization info when switching to client profile
   useEffect(() => {
     if (clientCurrentTab === 'profile') {
       organization.loadClientOrganizationInfo();
     }
-  }, [clientCurrentTab, organization]);
+  }, [clientCurrentTab]);
+
+  // Use refs to store the reset functions to avoid dependency issues
+  const resetFunctionsRef = useRef({
+    resetDocumentData: documentManagement.resetDocumentData,
+    resetChatData: chat.resetChatData,
+    resetOrganizationData: organization.resetOrganizationData,
+  });
+
+  // Update refs when functions change
+  resetFunctionsRef.current = {
+    resetDocumentData: documentManagement.resetDocumentData,
+    resetChatData: chat.resetChatData,
+    resetOrganizationData: organization.resetOrganizationData,
+  };
+
+  const resetAllData = useCallback(() => {
+    resetFunctionsRef.current.resetDocumentData();
+    resetFunctionsRef.current.resetChatData();
+    resetFunctionsRef.current.resetOrganizationData();
+  }, []);
 
   return {
     // Tab state
@@ -47,5 +68,8 @@ export const useAppState = (token: string | null, userId: string | undefined, is
 
     // Organization
     ...organization,
+
+    // Reset function
+    resetAllData,
   };
 };

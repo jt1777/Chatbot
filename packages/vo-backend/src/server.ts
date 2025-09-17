@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
 import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest, UpdateOrgDescriptionRequest } from '@chatbot/shared';
+
+// Local type definition for organization switching
+interface SwitchOrganizationRequest {
+  orgId: string;
+}
 import { AuthService } from './services/authService';
 import { authenticateToken, requireOrgAdmin, requireUser, authService } from './middleware/auth';
 
@@ -191,6 +196,36 @@ app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, 
   }
 });
 
+// Get all organizations for the current user
+app.get('/api/user/organizations', authenticateToken, requireUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const organizations = await authService.getUserOrganizations(user.userId);
+    res.json(organizations);
+  } catch (error: any) {
+    console.error('Get user organizations error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Switch to a different organization
+app.post('/api/user/switch-organization', authenticateToken, requireUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { orgId } = req.body as SwitchOrganizationRequest;
+
+    if (!orgId) {
+      return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    const result = await authService.switchOrganization(user.userId, orgId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Switch organization error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
   const { message, userId = 'default', useRAG = true } = req.body as ChatRequest;
   const user = (req as any).user; // Get user from auth middleware
@@ -371,50 +406,65 @@ app.post('/api/documents/upload-semantic', authenticateToken, requireOrgAdmin, u
 });
 
 // Document upload endpoint
-app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.single('file'), async (req, res) => {
+app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.array('files', 10), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
     }
 
     const user = (req as any).user; // Get user from auth middleware
-    const { originalname, mimetype, buffer } = req.file;
-    let documents;
+    const files = req.files as Express.Multer.File[];
+    let allDocuments: any[] = [];
+    let processedFiles: string[] = [];
 
-    if (mimetype === 'application/pdf') {
-      documents = await documentService.processPDFBuffer(buffer, originalname, user.orgId);
-    } else if (mimetype === 'text/plain') {
-      const content = buffer.toString('utf-8');
-      documents = await documentService.processTextFile(content, originalname, user.orgId);
-    } else {
-      return res.status(400).json({ error: 'Unsupported file type' });
+    // Process each file
+    for (const file of files) {
+      const { originalname, mimetype, buffer } = file;
+      let documents;
+
+      if (mimetype === 'application/pdf') {
+        documents = await documentService.processPDFBuffer(buffer, originalname, user.orgId);
+      } else if (mimetype === 'text/plain') {
+        const content = buffer.toString('utf-8');
+        documents = await documentService.processTextFile(content, originalname, user.orgId);
+      } else {
+        console.warn(`Skipping unsupported file type: ${mimetype} for file: ${originalname}`);
+        continue;
+      }
+
+      // Add organization context to documents
+      const documentsWithOrgId = documents.map(doc => ({
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          orgId: user.orgId
+        }
+      }));
+
+      allDocuments.push(...documentsWithOrgId);
+      processedFiles.push(originalname);
+      
+      // Track the document
+      await documentService.trackDocument(originalname, 'upload', documents.length, user.orgId);
     }
 
-    // Add organization context to documents
-    const documentsWithOrgId = documents.map(doc => ({
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        orgId: user.orgId
-      }
-    }));
+    if (allDocuments.length === 0) {
+      return res.status(400).json({ error: 'No valid files to process' });
+    }
 
-    // Initialize RAG service for this organization and add documents
+    // Initialize RAG service for this organization and add all documents
     await ragService.initialize(user.orgId);
-    await ragService.addDocuments(documentsWithOrgId, user.orgId);
-    
-    // Track the document
-    await documentService.trackDocument(originalname, 'upload', documents.length, user.orgId);
+    await ragService.addDocuments(allDocuments, user.orgId);
 
     res.json({
-      message: 'File uploaded and processed successfully',
-      filename: originalname,
-      chunksCreated: documents.length
+      message: 'Files uploaded and processed successfully',
+      files: processedFiles,
+      totalChunksCreated: allDocuments.length
     });
   } catch (error: any) {
     console.error('File upload error:', error);
     res.status(500).json({
-      error: 'Failed to process uploaded file',
+      error: 'Failed to process uploaded files',
       details: error.message
     });
   }

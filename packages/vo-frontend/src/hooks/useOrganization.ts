@@ -1,9 +1,12 @@
-import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
+import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export const useOrganization = (token: string | null) => {
+  const { updateUser, token: authToken, user } = useAuth();
+  
   // Invite management state
   const [inviteEmail, setInviteEmail] = useState<string>('');
   const [isCreatingInvite, setIsCreatingInvite] = useState<boolean>(false);
@@ -14,9 +17,18 @@ export const useOrganization = (token: string | null) => {
   const [isUpdatingDescription, setIsUpdatingDescription] = useState<boolean>(false);
   const [clientOrgInfo, setClientOrgInfo] = useState<any>(null);
 
+  // Organization switching state
+  const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
+  const [isSwitchingOrg, setIsSwitchingOrg] = useState<boolean>(false);
+
   const createInvite = useCallback(async () => {
     if (!inviteEmail.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter an email address',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -28,31 +40,34 @@ export const useOrganization = (token: string | null) => {
       }, {
         headers: { 
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${authToken}` 
         }
       });
 
-      Alert.alert(
-        'Invite Created!', 
-        `Invite code: ${response.data.inviteCode}\n\nShare this code with ${inviteEmail} to join your organization.`,
-        [
-          { text: 'Copy Code', onPress: () => {
-            // Copy to clipboard functionality would go here
-            console.log('Invite code:', response.data.inviteCode);
-          }},
-          { text: 'OK' }
-        ]
-      );
+      // Show success toast with invite code
+      Toast.show({
+        type: 'success',
+        text1: 'Invite Created!',
+        text2: `Invite code: ${response.data.inviteCode}`,
+        visibilityTime: 6000,
+      });
       
       setInviteEmail('');
       loadActiveInvites();
     } catch (error: any) {
       console.error('Error creating invite:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to create invite');
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Invite Failed',
+        text2: error.response?.data?.error || 'Failed to create invite',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsCreatingInvite(false);
     }
-  }, [inviteEmail, token]);
+  }, [inviteEmail, authToken]);
 
   const loadActiveInvites = useCallback(async () => {
     try {
@@ -69,24 +84,31 @@ export const useOrganization = (token: string | null) => {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       setOrgDescription(response.data.description || '');
     } catch (error) {
       console.error('Error loading organization info:', error);
     }
-  }, [token]);
+  }, [authToken]);
+
+  // Refresh organization description when user's current organization changes
+  useEffect(() => {
+    if (user?.orgId && authToken) {
+      loadOrganizationInfo();
+    }
+  }, [user?.orgId, authToken, loadOrganizationInfo]);
 
   const updateOrganizationDescription = useCallback(async () => {
     setIsUpdatingDescription(true);
     try {
       await axios.put(`${API_BASE_URL}/api/org/description`, {
-        description: orgDescription
+        orgDescription: orgDescription
       }, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       await loadOrganizationInfo();
@@ -95,21 +117,83 @@ export const useOrganization = (token: string | null) => {
     } finally {
       setIsUpdatingDescription(false);
     }
-  }, [orgDescription, token, loadOrganizationInfo]);
+  }, [orgDescription, authToken, loadOrganizationInfo]);
 
   const loadClientOrganizationInfo = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       setClientOrgInfo(response.data);
     } catch (error) {
       console.error('Error loading client organization info:', error);
     }
-  }, [token]);
+  }, [authToken]);
+
+  const loadUserOrganizations = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/user/organizations`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      setUserOrganizations(response.data);
+    } catch (error) {
+      console.error('❌ Error loading user organizations:', error);
+    }
+  }, [authToken]);
+
+  const switchOrganization = useCallback(async (orgId: string) => {
+    setIsSwitchingOrg(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/user/switch-organization`, {
+        orgId
+      }, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      // Update the token and user info
+      await updateUser(response.data.token, response.data.user);
+      
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Organization Switched!',
+        text2: 'Successfully switched to the selected organization',
+        visibilityTime: 3000,
+      });
+    } catch (error: any) {
+      console.error('❌ Error switching organization:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Switch Failed',
+        text2: error.response?.data?.error || 'Failed to switch organization',
+        visibilityTime: 4000,
+      });
+    } finally {
+      setIsSwitchingOrg(false);
+    }
+  }, [authToken, updateUser]);
+
+  const resetOrganizationData = useCallback(() => {
+    setInviteEmail('');
+    setIsCreatingInvite(false);
+    setActiveInvites([]);
+    setOrgDescription('');
+    setIsUpdatingDescription(false);
+    setClientOrgInfo(null);
+    setUserOrganizations([]);
+    setIsSwitchingOrg(false);
+  }, []);
 
   return {
     // State
@@ -119,6 +203,8 @@ export const useOrganization = (token: string | null) => {
     orgDescription,
     isUpdatingDescription,
     clientOrgInfo,
+    userOrganizations,
+    isSwitchingOrg,
 
     // Actions
     setInviteEmail,
@@ -128,5 +214,8 @@ export const useOrganization = (token: string | null) => {
     updateOrganizationDescription,
     loadOrganizationInfo,
     loadClientOrganizationInfo,
+    loadUserOrganizations,
+    switchOrganization,
+    resetOrganizationData,
   };
 };

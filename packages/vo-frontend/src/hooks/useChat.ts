@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { API_ENDPOINTS } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Message {
   text: string;
@@ -10,6 +11,8 @@ interface Message {
 }
 
 export const useChat = (token: string | null, userId: string | undefined) => {
+  const { token: authToken, user } = useAuth();
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -36,7 +39,7 @@ export const useChat = (token: string | null, userId: string | undefined) => {
       }, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
@@ -59,10 +62,24 @@ export const useChat = (token: string | null, userId: string | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, token, userId, strictMode]);
+  }, [input, isLoading, authToken, userId, strictMode]);
+
+  // Clear chat messages when user's current organization changes
+  useEffect(() => {
+    if (user?.orgId) {
+      setMessages([]);
+    }
+  }, [user?.orgId]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
+  }, []);
+
+  const resetChatData = useCallback(() => {
+    setMessages([]);
+    setInput('');
+    setIsLoading(false);
+    setStrictMode(true);
   }, []);
 
   return {
@@ -77,5 +94,6 @@ export const useChat = (token: string | null, userId: string | undefined) => {
     setStrictMode,
     sendMessage,
     clearChat,
+    resetChatData,
   };
 };

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
@@ -18,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (token: string, user: User) => Promise<void>;
   isAdmin: boolean;
   isClient: boolean;
 }
@@ -33,12 +34,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load stored auth data on app start
-  useEffect(() => {
-    loadStoredAuth();
-  }, []);
-
-  const loadStoredAuth = async () => {
+  const loadStoredAuth = useCallback(async () => {
     try {
       const storedToken = await AsyncStorage.getItem('auth_token');
       const storedUser = await AsyncStorage.getItem('auth_user');
@@ -62,7 +58,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Load stored auth data on app start
+  useEffect(() => {
+    loadStoredAuth();
+  }, [loadStoredAuth]);
 
   const login = async (newToken: string, newUser: User) => {
     try {
@@ -95,6 +96,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const updateUser = async (newToken: string, newUser: User) => {
+    try {
+      await AsyncStorage.setItem('auth_token', newToken);
+      await AsyncStorage.setItem('auth_user', JSON.stringify(newUser));
+      
+      setToken(newToken);
+      setUser(newUser);
+      
+      // Update axios authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    } catch (error) {
+      console.error('Error updating user data:', error);
+    }
+  };
+
   const isAdmin = user?.role === 'org_admin';
   const isClient = user?.role === 'client';
 
@@ -104,6 +120,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     logout,
+    updateUser,
     isAdmin,
     isClient,
   };

@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DocumentRecord {
   _id?: string;
@@ -26,6 +28,8 @@ interface RAGConfig {
 }
 
 export const useDocumentManagement = (token: string | null) => {
+  const { token: authToken, user } = useAuth();
+  
   // Document stats and management
   const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, documents: [] });
   const [showDocumentList, setShowDocumentList] = useState<boolean>(false);
@@ -82,7 +86,7 @@ export const useDocumentManagement = (token: string | null) => {
       const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       setDocumentStats(response.data);
@@ -90,21 +94,49 @@ export const useDocumentManagement = (token: string | null) => {
     } catch (error) {
       console.error('❌ Error loading document stats:', error);
     }
-  }, [token]);
+  }, [authToken]);
 
   const loadRagConfig = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/config/rag`, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       setRagConfig(response.data);
     } catch (error) {
       console.error('Error loading RAG config:', error);
     }
-  }, [token]);
+  }, [authToken]);
+
+  // Refresh document stats when user's current organization changes
+  useEffect(() => {
+    if (user?.orgId && authToken) {
+      loadDocumentStats();
+      loadRagConfig();
+    }
+  }, [user?.orgId, authToken, loadDocumentStats, loadRagConfig]);
+
+  const resetDocumentData = useCallback(() => {
+    setDocumentStats({ count: 0, documents: [] });
+    setShowDocumentList(false);
+    setShowDeleteMode(false);
+    setSelectedDocuments(new Set());
+    setCurrentPage(1);
+    setSelectedFiles([]);
+    setUrlInput('');
+    setWebsiteUrls([]);
+    setRagConfig({
+      chunkSize: 1000,
+      chunkOverlap: 200,
+      similarityThreshold: 0.7,
+      useSemanticSearch: true,
+      ragSearchLimit: 5
+    });
+    setShowRagConfig(false);
+    setIsLoading(false);
+  }, []);
 
   const saveRagConfig = useCallback(async () => {
     setRagConfigLoading(true);
@@ -112,7 +144,7 @@ export const useDocumentManagement = (token: string | null) => {
       await axios.post(`${API_BASE_URL}/api/config/rag`, ragConfig, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
     } catch (error) {
@@ -120,7 +152,7 @@ export const useDocumentManagement = (token: string | null) => {
     } finally {
       setRagConfigLoading(false);
     }
-  }, [ragConfig, token]);
+  }, [ragConfig, authToken]);
 
   const toggleDeleteMode = useCallback(() => {
     setShowDeleteMode(prev => !prev);
@@ -152,40 +184,71 @@ export const useDocumentManagement = (token: string | null) => {
     setIsLoading(true);
     try {
       const documentsToDelete = Array.from(selectedDocuments);
-      await axios.post(`${API_BASE_URL}/api/documents/delete`, {
-        documentIds: documentsToDelete
-      }, {
+      await axios.delete(`${API_BASE_URL}/api/documents/delete`, {
+        data: { documentIds: documentsToDelete },
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
       setSelectedDocuments(new Set());
       await loadDocumentStats();
-    } catch (error) {
+
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Documents Deleted!',
+        text2: `Successfully deleted ${documentsToDelete.length} document(s)`,
+        visibilityTime: 3000,
+      });
+    } catch (error: any) {
       console.error('Error deleting documents:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Delete Failed',
+        text2: error.response?.data?.error || 'Failed to delete documents. Please try again.',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [selectedDocuments, token, loadDocumentStats]);
+  }, [selectedDocuments, authToken, loadDocumentStats]);
 
   const clearAllDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/documents/clear`, {}, {
+      await axios.delete(`${API_BASE_URL}/api/documents/clear`, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
       await loadDocumentStats();
-    } catch (error) {
+
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'All Documents Cleared!',
+        text2: 'Successfully cleared all documents from knowledge base',
+        visibilityTime: 3000,
+      });
+    } catch (error: any) {
       console.error('Error clearing documents:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Clear Failed',
+        text2: error.response?.data?.error || 'Failed to clear documents. Please try again.',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [token, loadDocumentStats]);
+  }, [authToken, loadDocumentStats]);
 
   const handleFileSelect = useCallback((event: any) => {
     const files = Array.from(event.target.files) as File[];
@@ -206,22 +269,38 @@ export const useDocumentManagement = (token: string | null) => {
         formData.append('files', file);
       });
 
-      await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/documents/upload`, formData, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'multipart/form-data'
         }
       });
 
       setSelectedFiles([]);
       await loadDocumentStats();
-    } catch (error) {
+
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Files Uploaded Successfully!',
+        text2: `${response.data.files?.length || selectedFiles.length} file(s) processed and added to knowledge base`,
+        visibilityTime: 4000,
+      });
+    } catch (error: any) {
       console.error('Error uploading files:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Upload Failed',
+        text2: error.response?.data?.error || 'Failed to upload files. Please try again.',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [selectedFiles, token, loadDocumentStats]);
+  }, [selectedFiles, authToken, loadDocumentStats]);
 
   const addUrl = useCallback(() => {
     if (urlInput.trim() && !websiteUrls.includes(urlInput.trim())) {
@@ -239,23 +318,39 @@ export const useDocumentManagement = (token: string | null) => {
 
     setIsLoading(true);
     try {
-      await axios.post(`${API_BASE_URL}/api/documents/scrape`, {
+      const response = await axios.post(`${API_BASE_URL}/api/documents/scrape`, {
         urls: websiteUrls
       }, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${authToken}`
         }
       });
 
       setWebsiteUrls([]);
       await loadDocumentStats();
-    } catch (error) {
+
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Websites Scraped Successfully!',
+        text2: `${websiteUrls.length} website(s) processed and added to knowledge base`,
+        visibilityTime: 4000,
+      });
+    } catch (error: any) {
       console.error('Error scraping websites:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Scraping Failed',
+        text2: error.response?.data?.error || 'Failed to scrape websites. Please try again.',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [websiteUrls, token, loadDocumentStats]);
+  }, [websiteUrls, authToken, loadDocumentStats]);
 
   return {
     // State
@@ -298,5 +393,6 @@ export const useDocumentManagement = (token: string | null) => {
     saveRagConfig,
     loadDocumentStats,
     loadRagConfig,
+    resetDocumentData,
   };
 };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StatusBar } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/components/AuthScreen';
 import { Header } from './src/components/Header';
@@ -101,6 +102,8 @@ function MainApp() {
     orgDescription,
     isUpdatingDescription,
     clientOrgInfo,
+    userOrganizations,
+    isSwitchingOrg,
     setInviteEmail,
     createInvite,
     loadActiveInvites,
@@ -108,7 +111,23 @@ function MainApp() {
     updateOrganizationDescription,
     loadOrganizationInfo,
     loadClientOrganizationInfo,
+    switchOrganization,
+    resetAllData,
   } = appState;
+
+  // Reset data when user changes (logout/login)
+  React.useEffect(() => {
+    if (!user) {
+      resetAllData();
+    }
+  }, [user]);
+
+  // Set default tab for admins to profile
+  React.useEffect(() => {
+    if (isAdmin && currentTab === 'chat') {
+      setCurrentTab('profile');
+    }
+  }, [isAdmin, currentTab]);
 
   // Show loading screen while checking authentication
   if (authLoading) {
@@ -201,10 +220,13 @@ function MainApp() {
           isCreatingInvite={isCreatingInvite}
           orgDescription={orgDescription}
           isUpdatingDescription={isUpdatingDescription}
+          userOrganizations={userOrganizations}
+          isSwitchingOrg={isSwitchingOrg}
           onInviteEmailChange={setInviteEmail}
           onCreateInvite={createInvite}
           onOrgDescriptionChange={setOrgDescription}
           onUpdateOrganizationDescription={updateOrganizationDescription}
+          onSwitchOrganization={switchOrganization}
         />
       ) : (isClient && clientCurrentTab === 'profile') ? (
         <ClientProfile
@@ -222,6 +244,7 @@ export default function App() {
   return (
     <AuthProvider>
       <MainApp />
+      <Toast />
     </AuthProvider>
   );
 }

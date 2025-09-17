@@ -1,17 +1,25 @@
 export interface User {
   id: string;
-  orgId: string;
+  orgId: string; // Current active organization
   role: 'org_admin' | 'client';
   email: string; // Required but can be empty string for clients
   phone?: string; // Only for clients
   passwordHash?: string; // Only for admins
-  orgName?: string; // Organization name
-  orgDescription?: string; // Organization description
+  orgName?: string; // Current organization name
+  orgDescription?: string; // Current organization description
+  organizations?: OrganizationMembership[]; // All organizations user belongs to (for admins)
   inviteCode?: string; // Organization invite code
   pendingInvites?: { [inviteCode: string]: { email: string; role: string; expiresAt: Date; createdAt: Date } };
   adminCount?: number; // Number of admins in organization
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface OrganizationMembership {
+  orgId: string;
+  orgName: string;
+  role: 'org_admin' | 'client';
+  joinedAt: Date;
 }
 
 // Admin authentication
@@ -49,6 +57,7 @@ export interface AuthResponse {
     email?: string;
     phone?: string;
     orgName?: string;
+    organizations?: OrganizationMembership[];
   };
 }
 
@@ -94,4 +103,22 @@ export interface JoinOrganizationRequest {
 
 export interface UpdateOrgDescriptionRequest {
   orgDescription: string;
+}
+
+export interface SwitchOrganizationRequest {
+  orgId: string;
+}
+
+export interface SwitchOrganizationResponse {
+  token: string;
+  user: {
+    id: string;
+    orgId: string;
+    role: 'org_admin' | 'client';
+    email?: string;
+    phone?: string;
+    orgName?: string;
+    orgDescription?: string;
+    organizations?: OrganizationMembership[];
+  };
 }

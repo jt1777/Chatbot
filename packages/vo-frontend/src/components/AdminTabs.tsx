@@ -6,6 +6,14 @@ interface User {
   phone?: string;
   orgName?: string;
   orgId: string;
+  organizations?: OrganizationMembership[];
+}
+
+interface OrganizationMembership {
+  orgId: string;
+  orgName: string;
+  role: 'org_admin' | 'client';
+  joinedAt: Date;
 }
 
 interface OrganizationInfo {
@@ -20,10 +28,13 @@ interface AdminTabsProps {
   isCreatingInvite: boolean;
   orgDescription: string;
   isUpdatingDescription: boolean;
+  userOrganizations: OrganizationMembership[];
+  isSwitchingOrg: boolean;
   onInviteEmailChange: (email: string) => void;
   onCreateInvite: () => void;
   onOrgDescriptionChange: (description: string) => void;
   onUpdateOrganizationDescription: () => void;
+  onSwitchOrganization: (orgId: string) => void;
 }
 
 export const AdminTabs: React.FC<AdminTabsProps> = ({
@@ -33,10 +44,13 @@ export const AdminTabs: React.FC<AdminTabsProps> = ({
   isCreatingInvite,
   orgDescription,
   isUpdatingDescription,
+  userOrganizations,
+  isSwitchingOrg,
   onInviteEmailChange,
   onCreateInvite,
   onOrgDescriptionChange,
   onUpdateOrganizationDescription,
+  onSwitchOrganization,
 }) => {
   if (currentTab === 'invites') {
     return (
@@ -123,6 +137,59 @@ export const AdminTabs: React.FC<AdminTabsProps> = ({
           <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
             Organization Profile
           </Text>
+          
+          {/* Organization Selection */}
+          {userOrganizations && userOrganizations.length > 0 && (
+            <View style={{ 
+              backgroundColor: '#F0F9FF', 
+              padding: 16, 
+              borderRadius: 8, 
+              borderWidth: 1, 
+              borderColor: '#0EA5E9',
+              marginBottom: 16
+            }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0C4A6E', marginBottom: 12 }}>
+                {userOrganizations.length > 1 ? 'Switch Organization' : 'Current Organization'}
+              </Text>
+              <Text style={{ fontSize: 14, color: '#0369A1', marginBottom: 12 }}>
+                You are currently managing: <Text style={{ fontWeight: '600' }}>{user?.orgName}</Text>
+              </Text>
+              
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {userOrganizations.map((org) => (
+                  <TouchableOpacity
+                    key={org.orgId}
+                    style={{
+                      backgroundColor: org.orgId === user?.orgId ? '#0EA5E9' : 'white',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: org.orgId === user?.orgId ? '#0284C7' : '#E5E7EB',
+                      opacity: isSwitchingOrg ? 0.5 : 1,
+                      pointerEvents: isSwitchingOrg ? 'none' : 'auto'
+                    }}
+                    onPress={() => onSwitchOrganization(org.orgId)}
+                    disabled={isSwitchingOrg}
+                  >
+                    <Text style={{ 
+                      color: org.orgId === user?.orgId ? 'white' : '#374151',
+                      fontSize: 12,
+                      fontWeight: '500'
+                    }}>
+                      {org.orgName}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {isSwitchingOrg && (
+                <Text style={{ fontSize: 12, color: '#0369A1', marginTop: 8, fontStyle: 'italic' }}>
+                  Switching organization...
+                </Text>
+              )}
+            </View>
+          )}
           
           {/* Organization Info */}
           <View style={{ 
