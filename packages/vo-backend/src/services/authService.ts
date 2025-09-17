@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { MongoClient, Db, Collection } from 'mongodb';
-import { User, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, AuthResponse, JWTPayload } from '@chatbot/shared';
+import { User, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, AuthResponse, JWTPayload, Organization, CreateInviteRequest, InviteResponse, JoinOrganizationRequest } from '@chatbot/shared';
 
 export class AuthService {
   private client: MongoClient | null = null;
@@ -42,12 +42,35 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    const { email, password, orgId } = registerData;
+    const { email, password, orgId, orgName } = registerData;
 
     // Check if admin already exists
     const existingAdmin = await this.usersCollection.findOne({ email });
     if (existingAdmin) {
       throw new Error('Admin with this email already exists');
+    }
+
+    // Check if organization name already exists (case insensitive)
+    if (orgName) {
+      const existingOrg = await this.usersCollection.findOne({ 
+        orgName: { $regex: new RegExp(`^${orgName.trim()}$`, 'i') },
+        role: 'org_admin'
+      });
+      if (existingOrg) {
+        throw new Error('Organization name has already been taken');
+      }
+    }
+
+    // Check if email + organization combination already exists
+    if (orgName) {
+      const existingEmailOrg = await this.usersCollection.findOne({ 
+        email,
+        orgName: { $regex: new RegExp(`^${orgName.trim()}$`, 'i') },
+        role: 'org_admin'
+      });
+      if (existingEmailOrg) {
+        throw new Error('Email and organization has already been created');
+      }
     }
 
     // Hash password
@@ -57,14 +80,18 @@ export class AuthService {
     // Generate IDs
     const userId = this.generateUserId();
     const finalOrgId = orgId || this.generateOrgId();
+    const inviteCode = this.generateInviteCode();
 
-    // Create admin user
+    // Create admin user with organization info
     const user: User = {
       id: userId,
       orgId: finalOrgId,
       role: 'org_admin',
       email,
       passwordHash,
+      orgName: orgName || `Organization ${finalOrgId}`,
+      inviteCode,
+      adminCount: 1,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -85,7 +112,8 @@ export class AuthService {
         id: user.id,
         orgId: user.orgId,
         role: user.role,
-        email: user.email
+        email: user.email,
+        orgName: user.orgName
       }
     };
   }
@@ -124,7 +152,8 @@ export class AuthService {
         id: user.id,
         orgId: user.orgId,
         role: user.role,
-        email: user.email
+        email: user.email,
+        orgName: user.orgName
       }
     };
   }
@@ -220,7 +249,7 @@ export class AuthService {
       { 
         $group: { 
           _id: '$orgId', 
-          name: { $first: '$orgId' }, // For now, use orgId as name
+          name: { $first: '$orgName' }, // Use orgName from admin user
           adminCount: { $sum: 1 }
         } 
       },
@@ -229,7 +258,7 @@ export class AuthService {
 
     return orgs.map(org => ({
       orgId: org._id,
-      name: org.name,
+      name: org.name || org._id, // Fallback to orgId if orgName is not set
       adminCount: org.adminCount
     }));
   }
@@ -253,5 +282,191 @@ export class AuthService {
       this.db = null;
       this.usersCollection = null;
     }
+  }
+
+  // Organization management methods
+  async createOrganization(adminId: string, orgName: string): Promise<Organization> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const admin = await this.usersCollection.findOne({ id: adminId, role: 'org_admin' });
+    if (!admin) {
+      throw new Error('Admin not found');
+    }
+
+    const inviteCode = this.generateInviteCode();
+    const organization: Organization = {
+      id: admin.orgId,
+      name: orgName,
+      createdAt: new Date(),
+      adminCount: 1,
+      inviteCode
+    };
+
+    // Update admin with organization name and invite code
+    await this.usersCollection.updateOne(
+      { id: adminId },
+      { 
+        $set: { 
+          orgName,
+          inviteCode,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return organization;
+  }
+
+  async createInvite(adminId: string, inviteData: CreateInviteRequest): Promise<InviteResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const admin = await this.usersCollection.findOne({ id: adminId, role: 'org_admin' });
+    if (!admin) {
+      throw new Error('Admin not found');
+    }
+
+    const inviteCode = this.generateInviteCode();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    // Store invite in database (you might want to create a separate invites collection)
+    // For now, we'll store it in the admin's document
+    await this.usersCollection.updateOne(
+      { id: adminId },
+      { 
+        $set: { 
+          pendingInvites: {
+            ...admin.pendingInvites,
+            [inviteCode]: {
+              email: inviteData.email,
+              role: inviteData.role,
+              expiresAt,
+              createdAt: new Date()
+            }
+          },
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return {
+      inviteCode,
+      expiresAt
+    };
+  }
+
+  async joinOrganization(joinData: JoinOrganizationRequest): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find admin with matching invite code
+    const admin = await this.usersCollection.findOne({ 
+      'pendingInvites': { $exists: true },
+      [`pendingInvites.${joinData.inviteCode}`]: { $exists: true }
+    });
+
+    if (!admin || !admin.pendingInvites || !admin.pendingInvites[joinData.inviteCode]) {
+      throw new Error('Invalid or expired invite code');
+    }
+
+    const invite = admin.pendingInvites[joinData.inviteCode];
+    if (!invite) {
+      throw new Error('Invalid invite code');
+    }
+
+    if (invite.email !== joinData.email) {
+      throw new Error('Email does not match invite');
+    }
+
+    if (invite.expiresAt < new Date()) {
+      throw new Error('Invite code has expired');
+    }
+
+    // Check if user already exists
+    const existingUser = await this.usersCollection.findOne({ email: joinData.email });
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(joinData.password, saltRounds);
+
+    // Create new admin user in the same organization
+    const userId = this.generateUserId();
+    const user: User = {
+      id: userId,
+      orgId: admin.orgId,
+      role: 'org_admin',
+      email: joinData.email,
+      passwordHash,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await this.usersCollection.insertOne(user);
+
+    // Remove the used invite
+    const updatedInvites = { ...admin.pendingInvites };
+    delete updatedInvites[joinData.inviteCode];
+    
+    await this.usersCollection.updateOne(
+      { id: admin.id },
+      { 
+        $set: { 
+          pendingInvites: updatedInvites,
+          adminCount: (admin.adminCount || 1) + 1,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Generate JWT token
+    const token = this.generateToken({
+      userId: user.id,
+      orgId: user.orgId,
+      role: user.role,
+      email: user.email
+    });
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        orgId: user.orgId,
+        role: user.role,
+        email: user.email,
+        orgName: admin.orgName
+      }
+    };
+  }
+
+  async getOrganization(orgId: string): Promise<Organization | null> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const admin = await this.usersCollection.findOne({ orgId, role: 'org_admin' });
+    if (!admin) {
+      return null;
+    }
+
+    const adminCount = await this.usersCollection.countDocuments({ orgId, role: 'org_admin' });
+
+    return {
+      id: orgId,
+      name: admin.orgName || orgId,
+      createdAt: admin.createdAt,
+      adminCount,
+      inviteCode: admin.inviteCode || ''
+    };
+  }
+
+  private generateInviteCode(): string {
+    return Math.random().toString(36).substr(2, 8).toUpperCase();
   }
 }

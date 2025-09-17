@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
-import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest } from '@chatbot/shared';
+import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest } from '@chatbot/shared';
 import { AuthService } from './services/authService';
 import { authenticateToken, requireOrgAdmin, requireUser, authService } from './middleware/auth';
 
@@ -104,6 +104,73 @@ app.get('/api/orgs', async (req, res) => {
 // Token verification
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
   res.json({ valid: true, user: (req as any).user });
+});
+
+// Organization management endpoints
+app.post('/api/org/create', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { orgName } = req.body;
+    
+    if (!orgName) {
+      return res.status(400).json({ error: 'Organization name is required' });
+    }
+
+    const organization = await authService.createOrganization(user.userId, orgName);
+    res.json(organization);
+  } catch (error: any) {
+    console.error('Organization creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/org/invite', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const inviteData: CreateInviteRequest = req.body;
+    
+    if (!inviteData.email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const invite = await authService.createInvite(user.userId, inviteData);
+    res.json(invite);
+  } catch (error: any) {
+    console.error('Invite creation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/org/join', async (req, res) => {
+  try {
+    const joinData: JoinOrganizationRequest = req.body;
+    
+    if (!joinData.inviteCode || !joinData.email || !joinData.password) {
+      return res.status(400).json({ error: 'Invite code, email, and password are required' });
+    }
+
+    const result = await authService.joinOrganization(joinData);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Join organization error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/org/info', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const organization = await authService.getOrganization(user.orgId);
+    
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json(organization);
+  } catch (error: any) {
+    console.error('Get organization error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
@@ -476,8 +543,9 @@ app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (r
 // Clear all documents
 app.delete('/api/documents/clear', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
-    await ragService.clearAllDocuments();
-    await documentService.clearAllDocuments();
+    const user = (req as any).user; // Get user from auth middleware
+    await ragService.initialize(user.orgId); // Initialize RAG service for this organization
+    await ragService.clearAllDocuments(user.orgId);
     res.json({ message: 'All documents cleared successfully' });
   } catch (error: any) {
     console.error('Clear documents error:', error);

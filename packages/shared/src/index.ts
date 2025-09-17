@@ -15,5 +15,9 @@ export type {
   ClientTokenRequest, 
   AuthResponse, 
   JWTPayload, 
-  AuthenticatedRequest 
+  AuthenticatedRequest,
+  Organization,
+  CreateInviteRequest,
+  InviteResponse,
+  JoinOrganizationRequest
 } from './types/auth';

@@ -29,15 +29,20 @@ interface DocumentStats {
 }
 
 function MainApp() {
-  const { user, isLoading: authLoading, logout, isAdmin, isClient } = useAuth();
+  const { user, token, isLoading: authLoading, logout, isAdmin, isClient } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [currentTab, setCurrentTab] = useState<'chat' | 'documents'>('chat');
+  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'invites'>('chat');
   const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, documents: [] });
   const [showDocumentList, setShowDocumentList] = useState<boolean>(false);
   const [showDeleteMode, setShowDeleteMode] = useState<boolean>(false);
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+
+  // Invite management state
+  const [inviteEmail, setInviteEmail] = useState<string>('');
+  const [isCreatingInvite, setIsCreatingInvite] = useState<boolean>(false);
+  const [activeInvites, setActiveInvites] = useState<any[]>([]);
 
   // RAG Configuration state
   const [ragConfig, setRagConfig] = useState({
@@ -100,7 +105,8 @@ function MainApp() {
         useRAG: strictMode,
       }, {
         headers: {
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -130,7 +136,8 @@ function MainApp() {
       //console.log('🔍 Loading document stats from:', API_ENDPOINTS.DOCUMENTS_STATS);
       const response = await axios.get(API_ENDPOINTS.DOCUMENTS_STATS, {
         headers: {
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         }
       });
       //console.log('📊 Stats response:', response.data);
@@ -146,12 +153,63 @@ function MainApp() {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/config/rag`, {
         headers: {
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         }
       });
       setRagConfig(response.data);
     } catch (error) {
       console.error('Error loading RAG config:', error);
+    }
+  };
+
+  const createInvite = async () => {
+    if (!inviteEmail.trim()) {
+      Alert.alert('Error', 'Please enter an email address');
+      return;
+    }
+
+    setIsCreatingInvite(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/org/invite`, {
+        email: inviteEmail.trim(),
+        role: 'org_admin'
+      }, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}` 
+        }
+      });
+
+      Alert.alert(
+        'Invite Created!', 
+        `Invite code: ${response.data.inviteCode}\n\nShare this code with ${inviteEmail} to join your organization.`,
+        [
+          { text: 'Copy Code', onPress: () => {
+            // Copy to clipboard functionality would go here
+            console.log('Invite code:', response.data.inviteCode);
+          }},
+          { text: 'OK' }
+        ]
+      );
+      
+      setInviteEmail('');
+      loadActiveInvites();
+    } catch (error: any) {
+      console.error('Error creating invite:', error);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to create invite');
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  };
+
+  const loadActiveInvites = async () => {
+    try {
+      // This would need to be implemented in the backend
+      // For now, we'll just show a placeholder
+      setActiveInvites([]);
+    } catch (error) {
+      console.error('Error loading invites:', error);
     }
   };
 
@@ -161,7 +219,8 @@ function MainApp() {
       const response = await axios.post(`${API_BASE_URL}/api/config/rag`, ragConfig, {
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -202,7 +261,8 @@ function MainApp() {
             url: url
           }, {
             headers: {
-              'ngrok-skip-browser-warning': 'true'
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
             }
           });
           
@@ -292,7 +352,8 @@ function MainApp() {
           setIsLoading(true);
           await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
             headers: {
-              'ngrok-skip-browser-warning': 'true'
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
             }
           });
           window.alert('All documents cleared successfully');
@@ -322,7 +383,8 @@ function MainApp() {
                 setIsLoading(true);
                 await axios.delete(API_ENDPOINTS.DOCUMENTS_CLEAR, {
                   headers: {
-                    'ngrok-skip-browser-warning': 'true'
+                    'ngrok-skip-browser-warning': 'true',
+                    'Authorization': `Bearer ${token}`
                   }
                 });
                 Alert.alert('Success', 'All documents cleared successfully');
@@ -359,7 +421,8 @@ function MainApp() {
         const response = await axios.delete(API_ENDPOINTS.DOCUMENTS_DELETE, {
           data: { documentIds },
           headers: {
-            'ngrok-skip-browser-warning': 'true'
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token}`
           }
         });
         
@@ -450,7 +513,8 @@ function MainApp() {
             method: 'POST',
             body: formData,
             headers: {
-              'ngrok-skip-browser-warning': 'true'
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': `Bearer ${token}`
             }
           });
 
@@ -484,13 +548,41 @@ function MainApp() {
     }
   };
 
-  // Load document stats when switching to documents tab
+  // Load data when switching tabs
   React.useEffect(() => {
     if (currentTab === 'documents') {
       loadDocumentStats();
       loadRagConfig();
+    } else if (currentTab === 'invites') {
+      loadActiveInvites();
     }
   }, [currentTab]);
+
+  // Clear and reload document stats when user changes (login/logout)
+  React.useEffect(() => {
+    if (user) {
+      // User logged in - reload data for new user
+      if (currentTab === 'documents') {
+        loadDocumentStats();
+        loadRagConfig();
+      }
+    } else {
+      // User logged out - clear all data
+      setDocumentStats({ count: 0, documents: [] });
+      setRagConfig({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+        similarityThreshold: 0.7,
+        useSemanticSearch: false,
+        ragSearchLimit: 10
+      });
+      setMessages([]);
+      setSelectedFiles([]);
+      setWebsiteUrls([]);
+      setSelectedDocuments(new Set());
+      setCurrentPage(1);
+    }
+  }, [user?.id]); // Watch for user ID changes
 
   // Show loading screen while checking authentication
   if (authLoading) {
@@ -537,7 +629,7 @@ function MainApp() {
         
         {/* User Info */}
         <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 12 }}>
-          {isAdmin ? `Admin: ${user.email}` : `Client: ${user.phone}`} • Org: {user.orgId}
+          {isAdmin ? `Admin: ${user.email}` : `Client: ${user.phone}`} • Org: {user.orgName || user.orgId}
         </Text>
         
         {/* Tab Navigation */}
@@ -564,11 +656,28 @@ function MainApp() {
                 paddingVertical: 8,
                 borderRadius: 16,
                 backgroundColor: currentTab === 'documents' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                marginRight: 8,
               }}
               onPress={() => setCurrentTab('documents')}
             >
               <Text style={{ color: 'white', fontWeight: currentTab === 'documents' ? 'bold' : 'normal' }}>
                 Documents ({documentStats.count})
+              </Text>
+            </TouchableOpacity>
+          )}
+          {/* Only show Invites tab for admins */}
+          {isAdmin && (
+            <TouchableOpacity
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 16,
+                backgroundColor: currentTab === 'invites' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              }}
+              onPress={() => setCurrentTab('invites')}
+            >
+              <Text style={{ color: 'white', fontWeight: currentTab === 'invites' ? 'bold' : 'normal' }}>
+                Invites
               </Text>
             </TouchableOpacity>
           )}
@@ -629,7 +738,7 @@ function MainApp() {
             )}
           </ScrollView>
         </>
-      ) : (
+      ) : currentTab === 'documents' ? (
         /* Documents Tab */
         <ScrollView style={{ flex: 1, padding: 16 }}>
           {/* Document Stats */}
@@ -830,6 +939,78 @@ function MainApp() {
             )}
           </View>
 
+          {/* File Upload */}
+          <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Documents</Text>
+            
+            <input
+              id="fileInput"
+              type="file"
+              accept=".pdf,.txt"
+              multiple
+              onChange={handleFileSelect}
+              style={{
+                marginBottom: 12,
+                padding: 8,
+                border: '1px solid #D1D5DB',
+                borderRadius: 4,
+                width: '100%'
+              }}
+              disabled={isLoading}
+            />
+            
+            {/* File List */}
+            {selectedFiles.length > 0 && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
+                  Selected files ({selectedFiles.length}):
+                </Text>
+                {selectedFiles.map((file, index) => (
+                  <View key={index} style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 8, 
+                    borderRadius: 6, 
+                    marginBottom: 4 
+                  }}>
+                    <Text style={{ flex: 1, fontSize: 12, color: '#374151' }}>
+                      {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => removeFile(index)}
+                      style={{
+                        backgroundColor: '#EF4444',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        marginLeft: 8
+                      }}
+                    >
+                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            <TouchableOpacity
+              style={{
+                backgroundColor: selectedFiles.length > 0 && !isLoading ? '#8B5CF6' : '#D1D5DB',
+                padding: 12,
+                borderRadius: 8,
+                alignItems: 'center',
+                pointerEvents: (selectedFiles.length === 0 || isLoading) ? 'none' : 'auto'
+              }}
+              onPress={uploadFiles}
+              disabled={selectedFiles.length === 0 || isLoading}
+            >
+              <Text style={{ color: selectedFiles.length > 0 && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
+                {isLoading ? 'Uploading...' : `Upload & Process ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Website Scraping */}
           <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Scrape Websites</Text>
@@ -917,82 +1098,6 @@ function MainApp() {
                 {isLoading ? 'Processing...' : `Scrape ${websiteUrls.length} Website${websiteUrls.length !== 1 ? 's' : ''}`}
               </Text>
             </TouchableOpacity>
-          </View>
-
-          {/* File Upload */}
-          <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Documents</Text>
-            
-            <input
-              id="fileInput"
-              type="file"
-              accept=".pdf,.txt"
-              multiple
-              onChange={handleFileSelect}
-              style={{
-                marginBottom: 12,
-                padding: 8,
-                border: '1px solid #D1D5DB',
-                borderRadius: 4,
-                width: '100%'
-              }}
-              disabled={isLoading}
-            />
-            
-            {/* File List */}
-            {selectedFiles.length > 0 && (
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
-                  Selected files ({selectedFiles.length}):
-                </Text>
-                {selectedFiles.map((file, index) => (
-                  <View key={index} style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
-                    backgroundColor: '#F9FAFB', 
-                    padding: 8, 
-                    borderRadius: 6, 
-                    marginBottom: 4 
-                  }}>
-                    <Text style={{ flex: 1, fontSize: 12, color: '#374151' }}>
-                      {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => removeFile(index)}
-                      style={{
-                        backgroundColor: '#EF4444',
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 4,
-                        marginLeft: 8
-                      }}
-                    >
-                      <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-            
-            <TouchableOpacity
-              style={{
-                backgroundColor: selectedFiles.length > 0 && !isLoading ? '#8B5CF6' : '#D1D5DB',
-                padding: 12,
-                borderRadius: 8,
-                alignItems: 'center',
-                pointerEvents: (selectedFiles.length === 0 || isLoading) ? 'none' : 'auto'
-              }}
-              onPress={uploadFiles}
-              disabled={selectedFiles.length === 0 || isLoading}
-            >
-              <Text style={{ color: selectedFiles.length > 0 && !isLoading ? 'white' : 'gray', fontWeight: 'bold' }}>
-                {isLoading ? 'Uploading...' : `Upload & Process ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''}`}
-              </Text>
-            </TouchableOpacity>
-            
-            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
-              Supports PDF and text files (max 10MB each). Select multiple files at once.
-            </Text>
           </View>
 
           {/* RAG Configuration */}
@@ -1130,7 +1235,82 @@ function MainApp() {
           </View>
 
         </ScrollView>
-      )}
+      ) : currentTab === 'invites' && isAdmin ? (
+        /* Invites Tab */
+        <ScrollView style={{ flex: 1, padding: 16 }}>
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+              Invite New Admins
+            </Text>
+            
+            {/* Create Invite Form */}
+            <View style={{ 
+              backgroundColor: '#F9FAFB', 
+              padding: 16, 
+              borderRadius: 8, 
+              borderWidth: 1, 
+              borderColor: '#E5E7EB',
+              marginBottom: 16
+            }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                Send Invite
+              </Text>
+              
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 6,
+                  padding: 12,
+                  fontSize: 16,
+                  backgroundColor: 'white',
+                  marginBottom: 12
+                }}
+                placeholder="Enter email address"
+                value={inviteEmail}
+                onChangeText={setInviteEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              
+              <TouchableOpacity
+                style={{
+                  backgroundColor: isCreatingInvite ? '#D1D5DB' : '#3B82F6',
+                  padding: 12,
+                  borderRadius: 6,
+                  alignItems: 'center',
+                  pointerEvents: isCreatingInvite ? 'none' : 'auto'
+                }}
+                onPress={createInvite}
+                disabled={isCreatingInvite}
+              >
+                <Text style={{ color: 'white', fontWeight: '600' }}>
+                  {isCreatingInvite ? 'Creating Invite...' : 'Create Invite'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Instructions */}
+            <View style={{ 
+              backgroundColor: '#EFF6FF', 
+              padding: 16, 
+              borderRadius: 8, 
+              borderLeftWidth: 4, 
+              borderLeftColor: '#3B82F6'
+            }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E40AF', marginBottom: 8 }}>
+                How it works:
+              </Text>
+              <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 20 }}>
+                1. Enter the email address of the person you want to invite{'\n'}
+                2. Click "Create Invite" to generate an invite code{'\n'}
+                3. Share the invite code with the person{'\n'}
+                4. They can use the "Join Organization" tab to enter the code
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      ) : null}
 
       {/* Input - Only show on chat tab */}
       {currentTab === 'chat' && (

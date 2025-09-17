@@ -9,6 +9,7 @@ interface User {
   role: 'org_admin' | 'client';
   email?: string;
   phone?: string;
+  orgName?: string;
 }
 
 interface AuthContextType {

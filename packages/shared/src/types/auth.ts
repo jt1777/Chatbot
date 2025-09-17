@@ -5,6 +5,10 @@ export interface User {
   email: string; // Required but can be empty string for clients
   phone?: string; // Only for clients
   passwordHash?: string; // Only for admins
+  orgName?: string; // Organization name
+  inviteCode?: string; // Organization invite code
+  pendingInvites?: { [inviteCode: string]: { email: string; role: string; expiresAt: Date; createdAt: Date } };
+  adminCount?: number; // Number of admins in organization
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,6 +23,8 @@ export interface AdminRegisterRequest {
   email: string;
   password: string;
   orgId?: string; // If not provided, will create new org
+  orgName?: string; // Organization name for new orgs
+  inviteCode?: string; // For joining existing organization
 }
 
 // Client authentication
@@ -41,6 +47,7 @@ export interface AuthResponse {
     role: 'org_admin' | 'client';
     email?: string;
     phone?: string;
+    orgName?: string;
   };
 }
 
@@ -56,4 +63,29 @@ export interface JWTPayload {
 
 export interface AuthenticatedRequest {
   user: JWTPayload;
+}
+
+// Organization management
+export interface Organization {
+  id: string;
+  name: string;
+  createdAt: Date;
+  adminCount: number;
+  inviteCode: string;
+}
+
+export interface CreateInviteRequest {
+  email: string;
+  role: 'org_admin';
+}
+
+export interface InviteResponse {
+  inviteCode: string;
+  expiresAt: Date;
+}
+
+export interface JoinOrganizationRequest {
+  inviteCode: string;
+  email: string;
+  password: string;
 }

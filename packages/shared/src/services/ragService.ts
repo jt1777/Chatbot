@@ -25,8 +25,8 @@ export class RAGService {
     return await this.vectorStoreService.getDocumentCount();
   }
 
-  async clearAllDocuments(): Promise<void> {
-    return await this.vectorStoreService.clearAllDocuments();
+  async clearAllDocuments(orgId: string): Promise<void> {
+    return await this.vectorStoreService.clearAllDocuments(orgId);
   }
 
   async close(): Promise<void> {

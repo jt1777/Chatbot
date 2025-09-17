@@ -11,10 +11,13 @@
     "build:all": "cd packages/shared && npm run build && cd ../vo-backend && npm run build && cd ../datapipeline && npm run build",
     "install:all": "cd packages/shared && npm install && cd ../vo-backend && npm install && cd ../vo-frontend && npm install && cd ../datapipeline && npm install",
     "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist",
+    "reset-db": "node scripts/reset-vo-database.js",
     "test": "npm run test --workspaces"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "mongodb": "^6.0.0",
+    "dotenv": "^16.0.0"
   },
   "engines": {
     "node": ">=16.0.0",

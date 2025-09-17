@@ -4,18 +4,20 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 
-async function clearDatabase() {
+async function resetDatabase() {
   let client;
   
   try {
+    console.log('🚀 VO Database Reset Script');
+    console.log('============================');
     console.log('🔌 Connecting to MongoDB...');
-    console.log('📍 Using MongoDB URI:', MONGODB_URI.substring(0, 20) + '...');
+    
     client = new MongoClient(MONGODB_URI);
     await client.connect();
     
     const db = client.db('farsight');
     
-    console.log('🗑️ Clearing all collections...');
+    console.log('🗑️ Clearing all VO-related data...');
     
     // Clear users collection
     const usersResult = await db.collection('users').deleteMany({});
@@ -25,32 +27,41 @@ async function clearDatabase() {
     const collections = await db.listCollections().toArray();
     const vectorCollections = collections.filter(col => col.name.startsWith('business_docs_'));
     
+    console.log(`📄 Found ${vectorCollections.length} vector collections to clear:`);
     for (const collection of vectorCollections) {
       const result = await db.collection(collection.name).deleteMany({});
-      console.log(`✅ Deleted ${result.deletedCount} documents from ${collection.name}`);
+      console.log(`   ✅ Deleted ${result.deletedCount} documents from ${collection.name}`);
     }
     
     // Clear document tracker collections
     const trackerResult = await db.collection('document_tracker').deleteMany({});
     console.log(`✅ Deleted ${trackerResult.deletedCount} document tracker records`);
     
-    // Clear any other collections that might exist
-    const otherCollections = ['organizations', 'invites', 'sessions'];
+    // Clear any other VO-related collections
+    const otherCollections = ['organizations', 'invites', 'sessions', 'conversations'];
     for (const collectionName of otherCollections) {
       try {
         const result = await db.collection(collectionName).deleteMany({});
-        console.log(`✅ Deleted ${result.deletedCount} records from ${collectionName}`);
+        if (result.deletedCount > 0) {
+          console.log(`✅ Deleted ${result.deletedCount} records from ${collectionName}`);
+        }
       } catch (error) {
         // Collection might not exist, that's okay
         console.log(`ℹ️ Collection ${collectionName} doesn't exist or is empty`);
       }
     }
     
-    console.log('🎉 Database cleared successfully!');
-    console.log('📝 You can now register new admins and create organizations.');
+    console.log('');
+    console.log('🎉 VO Database reset completed successfully!');
+    console.log('📝 Next steps:');
+    console.log('   1. Start the backend: cd packages/vo-backend && npm run dev');
+    console.log('   2. Start the frontend: cd packages/vo-frontend && npm start');
+    console.log('   3. Register a new admin and create an organization');
+    console.log('   4. Test file uploads and organization management');
     
   } catch (error) {
-    console.error('❌ Error clearing database:', error);
+    console.error('❌ Error resetting database:', error);
+    console.error('Make sure MONGODB_URI is set in your .env file');
     process.exit(1);
   } finally {
     if (client) {
@@ -61,4 +72,4 @@ async function clearDatabase() {
 }
 
 // Run the script
-clearDatabase();
+resetDatabase();
