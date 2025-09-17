@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
@@ -58,6 +58,7 @@ export const useDocumentManagement = (token: string | null) => {
 
   // Loading state
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  
 
   // Pagination helpers
   const totalPages = Math.ceil(documentStats.documents.length / itemsPerPage);
@@ -263,6 +264,7 @@ export const useDocumentManagement = (token: string | null) => {
     if (selectedFiles.length === 0) return;
 
     setIsLoading(true);
+    
     try {
       const formData = new FormData();
       selectedFiles.forEach(file => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDocumentManagement } from './useDocumentManagement';
 import { useChat } from './useChat';
 import { useOrganization } from './useOrganization';
@@ -53,6 +53,13 @@ export const useAppState = (token: string | null, userId: string | undefined, is
     resetFunctionsRef.current.resetOrganizationData();
   }, []);
 
+
+  // Force re-render when documentManagement.isLoading changes
+  const [isLoading, setIsLoading] = React.useState(documentManagement.isLoading);
+  React.useEffect(() => {
+    setIsLoading(documentManagement.isLoading);
+  }, [documentManagement.isLoading]);
+
   return {
     // Tab state
     currentTab,
@@ -60,8 +67,44 @@ export const useAppState = (token: string | null, userId: string | undefined, is
     setCurrentTab,
     setClientCurrentTab,
 
-    // Document management
-    ...documentManagement,
+    // Document management - manually include all properties except isLoading
+    documentStats: documentManagement.documentStats,
+    showDocumentList: documentManagement.showDocumentList,
+    showDeleteMode: documentManagement.showDeleteMode,
+    selectedDocuments: documentManagement.selectedDocuments,
+    currentPage: documentManagement.currentPage,
+    totalPages: documentManagement.totalPages,
+    startIndex: documentManagement.startIndex,
+    endIndex: documentManagement.endIndex,
+    paginatedDocuments: documentManagement.paginatedDocuments,
+    selectedFiles: documentManagement.selectedFiles,
+    urlInput: documentManagement.urlInput,
+    websiteUrls: documentManagement.websiteUrls,
+    ragConfig: documentManagement.ragConfig,
+    showRagConfig: documentManagement.showRagConfig,
+    ragConfigLoading: documentManagement.ragConfigLoading,
+    setShowDocumentList: documentManagement.setShowDocumentList,
+    toggleDeleteMode: documentManagement.toggleDeleteMode,
+    selectAllDocuments: documentManagement.selectAllDocuments,
+    toggleDocumentSelection: documentManagement.toggleDocumentSelection,
+    deleteSelectedDocuments: documentManagement.deleteSelectedDocuments,
+    clearAllDocuments: documentManagement.clearAllDocuments,
+    goToPage: documentManagement.goToPage,
+    goToNextPage: documentManagement.goToNextPage,
+    goToPreviousPage: documentManagement.goToPreviousPage,
+    handleFileSelect: documentManagement.handleFileSelect,
+    removeFile: documentManagement.removeFile,
+    uploadFiles: documentManagement.uploadFiles,
+    setUrlInput: documentManagement.setUrlInput,
+    addUrl: documentManagement.addUrl,
+    removeUrl: documentManagement.removeUrl,
+    scrapeWebsites: documentManagement.scrapeWebsites,
+    setRagConfig: documentManagement.setRagConfig,
+    setShowRagConfig: documentManagement.setShowRagConfig,
+    saveRagConfig: documentManagement.saveRagConfig,
+    loadDocumentStats: documentManagement.loadDocumentStats,
+    loadRagConfig: documentManagement.loadRagConfig,
+    resetDocumentData: documentManagement.resetDocumentData,
 
     // Chat
     ...chat,
@@ -71,5 +114,8 @@ export const useAppState = (token: string | null, userId: string | undefined, is
 
     // Reset function
     resetAllData,
+
+    // Override isLoading after all spreads to ensure our tracked value is used
+    isLoading,
   };
 };
