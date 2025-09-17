@@ -157,7 +157,7 @@ app.post('/api/org/join', async (req, res) => {
   }
 });
 
-app.get('/api/org/info', authenticateToken, requireOrgAdmin, async (req, res) => {
+app.get('/api/org/info', authenticateToken, requireUser, async (req, res) => {
   try {
     const user = (req as any).user;
     const organization = await authService.getOrganization(user.orgId);

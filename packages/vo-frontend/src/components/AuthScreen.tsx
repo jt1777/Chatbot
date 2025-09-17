@@ -184,10 +184,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 30 }}>
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-            AI Chatbot
+            Ask Akasha
+          </Text>
+          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>
+            Version 0.1
           </Text>
           <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center' }}>
-            Organizational Version (VO)
+          Build a specialized knowledge base.  Analyze.  Share.
           </Text>
         </View>
 

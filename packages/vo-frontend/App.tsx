@@ -219,10 +219,6 @@ function MainApp() {
 
   const loadOrganizationInfo = async () => {
     try {
-      console.log('Loading organization info...');
-      console.log('API URL:', `${API_BASE_URL}/api/org/info`);
-      console.log('Token:', token ? 'Present' : 'Missing');
-      
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
         headers: { 
           'ngrok-skip-browser-warning': 'true',
@@ -230,17 +226,11 @@ function MainApp() {
         }
       });
       
-      console.log('Organization info response:', response.data);
-      
       if (response.data.description) {
         setOrgDescription(response.data.description);
-        console.log('Set org description:', response.data.description);
-      } else {
-        console.log('No description found in response');
       }
     } catch (error: any) {
       console.error('Error loading organization info:', error);
-      console.error('Error response:', error.response?.data);
     }
   };
 
@@ -249,10 +239,6 @@ function MainApp() {
       Alert.alert('Error', 'Please enter an organization description');
       return;
     }
-
-    console.log('Updating organization description:', orgDescription.trim());
-    console.log('API URL:', `${API_BASE_URL}/api/org/description`);
-    console.log('Token:', token ? 'Present' : 'Missing');
 
     setIsUpdatingDescription(true);
     try {
@@ -265,12 +251,12 @@ function MainApp() {
         }
       });
 
-      console.log('Update response:', response.data);
       Alert.alert('Success', 'Organization description updated successfully');
+      
+      // Reload organization info to show the updated description
+      await loadOrganizationInfo();
     } catch (error: any) {
       console.error('Error updating organization description:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
       Alert.alert('Error', error.response?.data?.error || 'Failed to update organization description');
     } finally {
       setIsUpdatingDescription(false);
@@ -1435,14 +1421,42 @@ function MainApp() {
                     Organization Profile
                   </Text>
                   
+                  {/* Organization Info */}
+                  <View style={{ 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB',
+                    marginBottom: 16
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      Organization Information
+                    </Text>
+                    
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization Name:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.orgName || 'Not set'}</Text>
+                    </View>
+                    
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization ID:</Text>
+                      <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'monospace' }}>{user?.orgId}</Text>
+                    </View>
+                    
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Admin Email:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.email}</Text>
+                    </View>
+                  </View>
+
                   {/* Organization Description */}
                   <View style={{ 
                     backgroundColor: 'white', 
                     padding: 16, 
                     borderRadius: 8, 
                     borderWidth: 1, 
-                    borderColor: '#E5E7EB',
-                    marginBottom: 16
+                    borderColor: '#E5E7EB'
                   }}>
                     <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
                       Organization Description
@@ -1487,34 +1501,6 @@ function MainApp() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-
-                  {/* Organization Info */}
-                  <View style={{ 
-                    backgroundColor: '#F9FAFB', 
-                    padding: 16, 
-                    borderRadius: 8, 
-                    borderWidth: 1, 
-                    borderColor: '#E5E7EB'
-                  }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
-                      Organization Information
-                    </Text>
-                    
-                    <View style={{ marginBottom: 8 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization Name:</Text>
-                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.orgName || 'Not set'}</Text>
-                    </View>
-                    
-                    <View style={{ marginBottom: 8 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization ID:</Text>
-                      <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'monospace' }}>{user?.orgId}</Text>
-                    </View>
-                    
-                    <View>
-                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Admin Email:</Text>
-                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.email}</Text>
-                    </View>
-                  </View>
                 </View>
               </ScrollView>
             ) : (isClient && clientCurrentTab === 'profile') ? (
@@ -1526,19 +1512,19 @@ function MainApp() {
                   </Text>
                   
                   {/* Organization Description */}
-                  {clientOrgInfo?.description && (
-                    <View style={{ 
-                      backgroundColor: 'white', 
-                      padding: 16, 
-                      borderRadius: 8, 
-                      borderWidth: 1, 
-                      borderColor: '#E5E7EB',
-                      marginBottom: 16
-                    }}>
-                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
-                        About {clientOrgInfo?.name || 'this organization'}
-                      </Text>
-                      
+                  <View style={{ 
+                    backgroundColor: 'white', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB',
+                    marginBottom: 16
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      About {clientOrgInfo?.name || 'this organization'}
+                    </Text>
+                    
+                    {clientOrgInfo?.description ? (
                       <Text style={{ 
                         fontSize: 14, 
                         color: '#4B5563', 
@@ -1547,8 +1533,17 @@ function MainApp() {
                       }}>
                         {clientOrgInfo.description}
                       </Text>
-                    </View>
-                  )}
+                    ) : (
+                      <Text style={{ 
+                        fontSize: 14, 
+                        color: '#9CA3AF', 
+                        fontStyle: 'italic',
+                        textAlign: 'left'
+                      }}>
+                        No description available for this organization.
+                      </Text>
+                    )}
+                  </View>
 
                   {/* Organization Details */}
                   <View style={{ 
