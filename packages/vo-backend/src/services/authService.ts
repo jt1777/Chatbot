@@ -210,13 +210,17 @@ export class AuthService {
       phone: user.phone
     }, '2h'); // 2 hour expiry for clients
 
+    // Get organization name for the response
+    const orgName = await this.getOrganizationName(user.orgId);
+
     return {
       token,
       user: {
         id: user.id,
         orgId: user.orgId,
         role: user.role,
-        phone: user.phone
+        phone: user.phone,
+        orgName: orgName || undefined
       }
     };
   }
@@ -460,10 +464,44 @@ export class AuthService {
     return {
       id: orgId,
       name: admin.orgName || orgId,
+      description: admin.orgDescription || '',
       createdAt: admin.createdAt,
       adminCount,
       inviteCode: admin.inviteCode || ''
     };
+  }
+
+  async getOrganizationName(orgId: string): Promise<string | null> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const admin = await this.usersCollection.findOne({ 
+      orgId, 
+      role: 'org_admin' 
+    });
+
+    return admin?.orgName || null;
+  }
+
+  async updateOrganizationDescription(orgId: string, orgDescription: string): Promise<void> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const result = await this.usersCollection.updateMany(
+      { orgId, role: 'org_admin' },
+      { 
+        $set: { 
+          orgDescription,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      throw new Error('Organization not found');
+    }
   }
 
   private generateInviteCode(): string {

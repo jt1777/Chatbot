@@ -6,6 +6,7 @@ export interface User {
   phone?: string; // Only for clients
   passwordHash?: string; // Only for admins
   orgName?: string; // Organization name
+  orgDescription?: string; // Organization description
   inviteCode?: string; // Organization invite code
   pendingInvites?: { [inviteCode: string]: { email: string; role: string; expiresAt: Date; createdAt: Date } };
   adminCount?: number; // Number of admins in organization
@@ -69,6 +70,7 @@ export interface AuthenticatedRequest {
 export interface Organization {
   id: string;
   name: string;
+  description?: string;
   createdAt: Date;
   adminCount: number;
   inviteCode: string;
@@ -88,4 +90,8 @@ export interface JoinOrganizationRequest {
   inviteCode: string;
   email: string;
   password: string;
+}
+
+export interface UpdateOrgDescriptionRequest {
+  orgDescription: string;
 }

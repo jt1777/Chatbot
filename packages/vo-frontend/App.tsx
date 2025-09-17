@@ -33,7 +33,8 @@ function MainApp() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'invites'>('chat');
+  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'invites' | 'profile'>('chat');
+  const [clientCurrentTab, setClientCurrentTab] = useState<'chat' | 'profile'>('chat');
   const [documentStats, setDocumentStats] = useState<DocumentStats>({ count: 0, documents: [] });
   const [showDocumentList, setShowDocumentList] = useState<boolean>(false);
   const [showDeleteMode, setShowDeleteMode] = useState<boolean>(false);
@@ -43,6 +44,9 @@ function MainApp() {
   const [inviteEmail, setInviteEmail] = useState<string>('');
   const [isCreatingInvite, setIsCreatingInvite] = useState<boolean>(false);
   const [activeInvites, setActiveInvites] = useState<any[]>([]);
+  const [orgDescription, setOrgDescription] = useState<string>('');
+  const [isUpdatingDescription, setIsUpdatingDescription] = useState<boolean>(false);
+  const [clientOrgInfo, setClientOrgInfo] = useState<any>(null);
 
   // RAG Configuration state
   const [ragConfig, setRagConfig] = useState({
@@ -210,6 +214,81 @@ function MainApp() {
       setActiveInvites([]);
     } catch (error) {
       console.error('Error loading invites:', error);
+    }
+  };
+
+  const loadOrganizationInfo = async () => {
+    try {
+      console.log('Loading organization info...');
+      console.log('API URL:', `${API_BASE_URL}/api/org/info`);
+      console.log('Token:', token ? 'Present' : 'Missing');
+      
+      const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}` 
+        }
+      });
+      
+      console.log('Organization info response:', response.data);
+      
+      if (response.data.description) {
+        setOrgDescription(response.data.description);
+        console.log('Set org description:', response.data.description);
+      } else {
+        console.log('No description found in response');
+      }
+    } catch (error: any) {
+      console.error('Error loading organization info:', error);
+      console.error('Error response:', error.response?.data);
+    }
+  };
+
+  const updateOrganizationDescription = async () => {
+    if (!orgDescription.trim()) {
+      Alert.alert('Error', 'Please enter an organization description');
+      return;
+    }
+
+    console.log('Updating organization description:', orgDescription.trim());
+    console.log('API URL:', `${API_BASE_URL}/api/org/description`);
+    console.log('Token:', token ? 'Present' : 'Missing');
+
+    setIsUpdatingDescription(true);
+    try {
+      const response = await axios.put(`${API_BASE_URL}/api/org/description`, {
+        orgDescription: orgDescription.trim()
+      }, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}` 
+        }
+      });
+
+      console.log('Update response:', response.data);
+      Alert.alert('Success', 'Organization description updated successfully');
+    } catch (error: any) {
+      console.error('Error updating organization description:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      Alert.alert('Error', error.response?.data?.error || 'Failed to update organization description');
+    } finally {
+      setIsUpdatingDescription(false);
+    }
+  };
+
+  const loadClientOrganizationInfo = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}` 
+        }
+      });
+      
+      setClientOrgInfo(response.data);
+    } catch (error: any) {
+      console.error('Error loading client organization info:', error);
     }
   };
 
@@ -555,8 +634,16 @@ function MainApp() {
       loadRagConfig();
     } else if (currentTab === 'invites') {
       loadActiveInvites();
+    } else if (currentTab === 'profile') {
+      loadOrganizationInfo();
     }
   }, [currentTab]);
+
+  React.useEffect(() => {
+    if (clientCurrentTab === 'profile') {
+      loadClientOrganizationInfo();
+    }
+  }, [clientCurrentTab]);
 
   // Clear and reload document stats when user changes (login/logout)
   React.useEffect(() => {
@@ -610,7 +697,7 @@ function MainApp() {
       <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
-            AI Chatbot with RAG
+            Ask Akasha
           </Text>
           <TouchableOpacity
             onPress={logout}
@@ -639,12 +726,12 @@ function MainApp() {
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 16,
-              backgroundColor: currentTab === 'chat' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              backgroundColor: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'rgba(255,255,255,0.2)' : 'transparent',
               marginRight: 8,
             }}
-            onPress={() => setCurrentTab('chat')}
+            onPress={() => isAdmin ? setCurrentTab('chat') : setClientCurrentTab('chat')}
           >
-            <Text style={{ color: 'white', fontWeight: currentTab === 'chat' ? 'bold' : 'normal' }}>
+            <Text style={{ color: 'white', fontWeight: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'bold' : 'normal' }}>
               Chat
             </Text>
           </TouchableOpacity>
@@ -666,26 +753,56 @@ function MainApp() {
             </TouchableOpacity>
           )}
           {/* Only show Invites tab for admins */}
-          {isAdmin && (
-            <TouchableOpacity
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 16,
-                backgroundColor: currentTab === 'invites' ? 'rgba(255,255,255,0.2)' : 'transparent',
-              }}
-              onPress={() => setCurrentTab('invites')}
-            >
-              <Text style={{ color: 'white', fontWeight: currentTab === 'invites' ? 'bold' : 'normal' }}>
-                Invites
-              </Text>
-            </TouchableOpacity>
-          )}
+            {isAdmin && (
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 16,
+                  backgroundColor: currentTab === 'invites' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                }}
+                onPress={() => setCurrentTab('invites')}
+              >
+                <Text style={{ color: 'white', fontWeight: currentTab === 'invites' ? 'bold' : 'normal' }}>
+                  Invites
+                </Text>
+              </TouchableOpacity>
+            )}
+            {isAdmin && (
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 16,
+                  backgroundColor: currentTab === 'profile' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                }}
+                onPress={() => setCurrentTab('profile')}
+              >
+                <Text style={{ color: 'white', fontWeight: currentTab === 'profile' ? 'bold' : 'normal' }}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
+            )}
+            {isClient && (
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 16,
+                  backgroundColor: clientCurrentTab === 'profile' ? 'rgba(255,255,255,0.2)' : 'transparent',
+                }}
+                onPress={() => setClientCurrentTab('profile')}
+              >
+                <Text style={{ color: 'white', fontWeight: clientCurrentTab === 'profile' ? 'bold' : 'normal' }}>
+                  Profile
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
       </View>
 
       {/* Content Area */}
-      {currentTab === 'chat' ? (
+      {(isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? (
         <>
           {/* Messages */}
           <ScrollView style={{ flex: 1, padding: 16 }}>
@@ -1236,84 +1353,231 @@ function MainApp() {
 
         </ScrollView>
       ) : currentTab === 'invites' && isAdmin ? (
-        /* Invites Tab */
-        <ScrollView style={{ flex: 1, padding: 16 }}>
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-              Invite New Admins
-            </Text>
-            
-            {/* Create Invite Form */}
-            <View style={{ 
-              backgroundColor: '#F9FAFB', 
-              padding: 16, 
-              borderRadius: 8, 
-              borderWidth: 1, 
-              borderColor: '#E5E7EB',
-              marginBottom: 16
-            }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
-                Send Invite
-              </Text>
-              
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: '#D1D5DB',
-                  borderRadius: 6,
-                  padding: 12,
-                  fontSize: 16,
-                  backgroundColor: 'white',
-                  marginBottom: 12
-                }}
-                placeholder="Enter email address"
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              
-              <TouchableOpacity
-                style={{
-                  backgroundColor: isCreatingInvite ? '#D1D5DB' : '#3B82F6',
-                  padding: 12,
-                  borderRadius: 6,
-                  alignItems: 'center',
-                  pointerEvents: isCreatingInvite ? 'none' : 'auto'
-                }}
-                onPress={createInvite}
-                disabled={isCreatingInvite}
-              >
-                <Text style={{ color: 'white', fontWeight: '600' }}>
-                  {isCreatingInvite ? 'Creating Invite...' : 'Create Invite'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+              /* Invites Tab */
+              <ScrollView style={{ flex: 1, padding: 16 }}>
+                <View style={{ marginBottom: 24 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                    Invite New Admins
+                  </Text>
+                  
+                  {/* Create Invite Form */}
+                  <View style={{ 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB',
+                    marginBottom: 16
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      Send Invite
+                    </Text>
+                    
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 16,
+                        backgroundColor: 'white',
+                        marginBottom: 12
+                      }}
+                      placeholder="Enter email address"
+                      value={inviteEmail}
+                      onChangeText={setInviteEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                    
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: isCreatingInvite ? '#D1D5DB' : '#3B82F6',
+                        padding: 12,
+                        borderRadius: 6,
+                        alignItems: 'center',
+                        pointerEvents: isCreatingInvite ? 'none' : 'auto'
+                      }}
+                      onPress={createInvite}
+                      disabled={isCreatingInvite}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '600' }}>
+                        {isCreatingInvite ? 'Creating Invite...' : 'Create Invite'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
 
-            {/* Instructions */}
-            <View style={{ 
-              backgroundColor: '#EFF6FF', 
-              padding: 16, 
-              borderRadius: 8, 
-              borderLeftWidth: 4, 
-              borderLeftColor: '#3B82F6'
-            }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E40AF', marginBottom: 8 }}>
-                How it works:
-              </Text>
-              <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 20 }}>
-                1. Enter the email address of the person you want to invite{'\n'}
-                2. Click "Create Invite" to generate an invite code{'\n'}
-                3. Share the invite code with the person{'\n'}
-                4. They can use the "Join Organization" tab to enter the code
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
-      ) : null}
+                  {/* Instructions */}
+                  <View style={{ 
+                    backgroundColor: '#EFF6FF', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderLeftWidth: 4, 
+                    borderLeftColor: '#3B82F6'
+                  }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#1E40AF', marginBottom: 8 }}>
+                      How it works:
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 20 }}>
+                      1. Enter the email address of the person you want to invite{'\n'}
+                      2. Click "Create Invite" to generate an invite code{'\n'}
+                      3. Share the invite code with the person{'\n'}
+                      4. They can use the "Join Organization" tab to enter the code
+                    </Text>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : currentTab === 'profile' && isAdmin ? (
+              /* Profile Tab */
+              <ScrollView style={{ flex: 1, padding: 16 }}>
+                <View style={{ marginBottom: 24 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                    Organization Profile
+                  </Text>
+                  
+                  {/* Organization Description */}
+                  <View style={{ 
+                    backgroundColor: 'white', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB',
+                    marginBottom: 16
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      Organization Description
+                    </Text>
+                    
+                    <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12 }}>
+                      Provide a description of your organization that will be visible to clients.
+                    </Text>
+                    
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        borderRadius: 6,
+                        padding: 12,
+                        fontSize: 16,
+                        backgroundColor: '#F9FAFB',
+                        minHeight: 120,
+                        textAlignVertical: 'top'
+                      }}
+                      placeholder="Enter organization description..."
+                      value={orgDescription}
+                      onChangeText={setOrgDescription}
+                      multiline
+                      numberOfLines={6}
+                    />
+                    
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: isUpdatingDescription ? '#D1D5DB' : '#10B981',
+                        padding: 12,
+                        borderRadius: 6,
+                        alignItems: 'center',
+                        marginTop: 12,
+                        pointerEvents: isUpdatingDescription ? 'none' : 'auto'
+                      }}
+                      onPress={updateOrganizationDescription}
+                      disabled={isUpdatingDescription}
+                    >
+                      <Text style={{ color: 'white', fontWeight: '600' }}>
+                        {isUpdatingDescription ? 'Updating...' : 'Update Description'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Organization Info */}
+                  <View style={{ 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB'
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      Organization Information
+                    </Text>
+                    
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization Name:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.orgName || 'Not set'}</Text>
+                    </View>
+                    
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization ID:</Text>
+                      <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'monospace' }}>{user?.orgId}</Text>
+                    </View>
+                    
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Admin Email:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.email}</Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : (isClient && clientCurrentTab === 'profile') ? (
+              /* Client Profile Tab */
+              <ScrollView style={{ flex: 1, padding: 16 }}>
+                <View style={{ marginBottom: 24 }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                    Organization Information
+                  </Text>
+                  
+                  {/* Organization Description */}
+                  {clientOrgInfo?.description && (
+                    <View style={{ 
+                      backgroundColor: 'white', 
+                      padding: 16, 
+                      borderRadius: 8, 
+                      borderWidth: 1, 
+                      borderColor: '#E5E7EB',
+                      marginBottom: 16
+                    }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                        About {clientOrgInfo?.name || 'this organization'}
+                      </Text>
+                      
+                      <Text style={{ 
+                        fontSize: 14, 
+                        color: '#4B5563', 
+                        lineHeight: 20,
+                        textAlign: 'left'
+                      }}>
+                        {clientOrgInfo.description}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Organization Details */}
+                  <View style={{ 
+                    backgroundColor: '#F9FAFB', 
+                    padding: 16, 
+                    borderRadius: 8, 
+                    borderWidth: 1, 
+                    borderColor: '#E5E7EB'
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+                      Organization Details
+                    </Text>
+                    
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Organization Name:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{clientOrgInfo?.name || user?.orgName || 'Not available'}</Text>
+                    </View>
+                    
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Your Phone:</Text>
+                      <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.phone || 'Not available'}</Text>
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+            ) : null}
 
       {/* Input - Only show on chat tab */}
-      {currentTab === 'chat' && (
+      {(isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') && (
         <>
           {/* Chat Controls */}
           <View style={{ 

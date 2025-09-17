@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
-import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest } from '@chatbot/shared';
+import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest, UpdateOrgDescriptionRequest } from '@chatbot/shared';
 import { AuthService } from './services/authService';
 import { authenticateToken, requireOrgAdmin, requireUser, authService } from './middleware/auth';
 
@@ -169,6 +169,24 @@ app.get('/api/org/info', authenticateToken, requireOrgAdmin, async (req, res) =>
     res.json(organization);
   } catch (error: any) {
     console.error('Get organization error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update organization description
+app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { orgDescription } = req.body as UpdateOrgDescriptionRequest;
+
+    if (!orgDescription) {
+      return res.status(400).json({ error: 'Organization description is required' });
+    }
+
+    await authService.updateOrganizationDescription(user.orgId, orgDescription);
+    res.json({ success: true, message: 'Organization description updated successfully' });
+  } catch (error: any) {
+    console.error('Update organization description error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -584,8 +602,11 @@ app.post('/api/documents/search', async (req, res) => {
 });
 
 console.log('About to start server...');
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at http://0.0.0.0:${PORT}`);
+  console.log(`Local access: http://localhost:${PORT}`);
+  console.log(`Network access: http://192.168.1.86:${PORT}`);
   console.log('Server started successfully, keeping alive...');
 });
 
