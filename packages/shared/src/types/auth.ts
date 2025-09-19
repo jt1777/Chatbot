@@ -1,8 +1,9 @@
 export interface User {
   id: string;
-  orgId: string; // Current active organization
-  role: 'admin' | 'client' | 'guest';
-  email: string; // Required for admins and clients, can be empty for guests
+  // Legacy fields for backward compatibility
+  orgId?: string; // Legacy field for backward compatibility
+  role?: 'admin' | 'client' | 'guest'; // Legacy field for backward compatibility
+  email?: string;
   phone?: string; // Only for clients
   passwordHash?: string; // Password hash for admins and registered clients
   orgName?: string; // Current organization name
@@ -20,6 +21,9 @@ export interface User {
     [orgId: string]: {
       role: 'admin' | 'client' | 'guest';
       joinedAt: Date;
+      orgName?: string;
+      orgDescription?: string;
+      isPublic?: boolean;
       permissions?: string[];
     }
   };

@@ -124,7 +124,7 @@ export class AuthService {
       const token = this.generateToken({
         userId: existingAdmin.id,
         orgId: finalOrgId,
-        role: existingAdmin.role,
+        role: existingAdmin.role!,
         email: existingAdmin.email
       });
 
@@ -133,7 +133,7 @@ export class AuthService {
         user: {
           id: existingAdmin.id,
           orgId: finalOrgId,
-          role: existingAdmin.role,
+          role: existingAdmin.role!,
           email: existingAdmin.email,
           orgName: orgName || `Organization ${finalOrgId}`,
           organizations: updatedOrganizations
@@ -179,8 +179,8 @@ export class AuthService {
       // Generate JWT token
       const token = this.generateToken({
         userId: user.id,
-        orgId: user.orgId,
-        role: user.role,
+        orgId: user.orgId!,
+        role: user.role!,
         email: user.email
       });
 
@@ -188,8 +188,8 @@ export class AuthService {
         token,
         user: {
           id: user.id,
-          orgId: user.orgId,
-          role: user.role,
+          orgId: user.orgId!,
+          role: user.role!,
           email: user.email,
           orgName: user.orgName,
           organizations: (user as any).organizations
@@ -221,8 +221,8 @@ export class AuthService {
     // Generate JWT token
     const token = this.generateToken({
       userId: user.id,
-      orgId: user.orgId,
-      role: user.role,
+      orgId: user.orgId!,
+      role: user.role!,
       email: user.email
     });
 
@@ -230,8 +230,8 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
-        role: user.role,
+        orgId: user.orgId!,
+        role: user.role!,
         email: user.email,
         orgName: user.orgName
       }
@@ -285,20 +285,20 @@ export class AuthService {
     // Generate JWT token (shorter expiry for clients)
     const token = this.generateToken({
       userId: user.id,
-      orgId: user.orgId,
-      role: user.role,
+      orgId: user.orgId!,
+      role: user.role!,
       phone: user.phone
     }, '2h'); // 2 hour expiry for clients
 
     // Get organization name for the response
-    const orgName = await this.getOrganizationName(user.orgId);
+    const orgName = await this.getOrganizationName(user.orgId!);
 
     return {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
-        role: user.role,
+        orgId: user.orgId!,
+        role: user.role!,
         phone: user.phone,
         orgName: orgName || undefined
       }
@@ -336,8 +336,8 @@ export class AuthService {
     const allUsers = await this.usersCollection.find({}).toArray();
     console.log('🔍 ALL users in database:', allUsers.map(user => ({
       email: user.email,
-      role: user.role,
-      orgId: user.orgId,
+      role: user.role!,
+      orgId: user.orgId!,
       orgName: user.orgName,
       isPublic: user.isPublic
     })));
@@ -347,8 +347,8 @@ export class AuthService {
     }).toArray();
     console.log('🔍 Admin users found:', adminUsers.map(user => ({
       email: user.email,
-      role: user.role,
-      orgId: user.orgId,
+      role: user.role!,
+      orgId: user.orgId!,
       orgName: user.orgName,
       isPublic: user.isPublic
     })));
@@ -465,7 +465,7 @@ export class AuthService {
 
     const inviteCode = this.generateInviteCode();
     const organization: Organization = {
-      id: admin.orgId,
+      id: admin.orgId!,
       name: orgName,
       createdAt: new Date(),
       adminCount: 1,
@@ -568,7 +568,7 @@ export class AuthService {
     const userId = this.generateUserId();
     const user: User = {
       id: userId,
-      orgId: admin.orgId,
+      orgId: admin.orgId!,
       role: invite.role as 'admin' | 'client',
       email: joinData.email,
       passwordHash,
@@ -579,8 +579,8 @@ export class AuthService {
 
     // Add organizations array
     (user as any).organizations = [{
-      orgId: admin.orgId,
-      orgName: admin.orgName || `Organization ${admin.orgId}`,
+      orgId: admin.orgId!,
+      orgName: admin.orgName || `Organization ${admin.orgId!}`,
       isPublic: (admin as any).isPublic || true,
       role: 'admin',
       joinedAt: new Date()
@@ -594,7 +594,7 @@ export class AuthService {
     
     // Add the new user to the admin's organizations list
     const updatedOrganizations: OrganizationMembership[] = (admin as any).organizations || [];
-    const existingOrgIndex = updatedOrganizations.findIndex((org: OrganizationMembership) => org.orgId === admin.orgId);
+    const existingOrgIndex = updatedOrganizations.findIndex((org: OrganizationMembership) => org.orgId === admin.orgId!);
     
     if (existingOrgIndex >= 0) {
       // Organization already exists in the list, just update the admin count
@@ -603,8 +603,8 @@ export class AuthService {
     } else {
       // Add the organization to the list
       updatedOrganizations.push({
-        orgId: admin.orgId!,
-        orgName: admin.orgName || `Organization ${admin.orgId}`,
+        orgId: admin.orgId!!,
+        orgName: admin.orgName || `Organization ${admin.orgId!}`,
         role: 'admin' as const,
         joinedAt: admin.createdAt || new Date()
       });
@@ -629,8 +629,8 @@ export class AuthService {
     // Generate JWT token
     const token = this.generateToken({
       userId: user.id,
-      orgId: user.orgId,
-      role: user.role,
+      orgId: user.orgId!,
+      role: user.role!,
       email: user.email
     });
 
@@ -638,10 +638,10 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
-        role: user.role,
+        orgId: user.orgId!,
+        role: user.role!,
         email: user.email,
-        orgName: admin.orgName || `Organization ${admin.orgId}`,
+        orgName: admin.orgName || `Organization ${admin.orgId!}`,
         orgDescription: (admin as any).orgDescription || '',
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
@@ -654,9 +654,46 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    // First, try to find a user with this orgId as their current org
+    console.log('🔍 getOrganization called for orgId:', orgId);
+
+    // First, try to find a user with this orgId in their organizationAccess as admin
+    const adminWithOrgAccess = await this.usersCollection.findOne({ 
+      [`organizationAccess.${orgId}.role`]: 'admin'
+    });
+
+    if (adminWithOrgAccess) {
+      console.log('🔍 Found admin with organizationAccess:', {
+        userId: adminWithOrgAccess.id,
+        email: adminWithOrgAccess.email,
+        orgAccess: adminWithOrgAccess.organizationAccess?.[orgId]
+      });
+
+      const orgAccess = adminWithOrgAccess.organizationAccess?.[orgId];
+      console.log('🔍 orgAccess for orgId', orgId, ':', JSON.stringify(orgAccess, null, 2));
+      const adminCount = await this.usersCollection.countDocuments({ 
+        [`organizationAccess.${orgId}.role`]: 'admin'
+      });
+
+      return {
+        id: orgId,
+        name: orgAccess?.orgName || orgId,
+        description: orgAccess?.orgDescription || '',
+        isPublic: orgAccess?.isPublic !== false, // Default to true
+        createdAt: orgAccess?.joinedAt || new Date(),
+        adminCount,
+        inviteCode: adminWithOrgAccess.inviteCode || ''
+      };
+    }
+
+    // Fallback: try to find a user with this orgId as their current org (legacy)
     const admin = await this.usersCollection.findOne({ orgId, role: 'admin' });
     if (admin) {
+      console.log('🔍 Found admin with legacy orgId:', {
+        userId: admin.id,
+        email: admin.email,
+        orgName: admin.orgName
+      });
+
       const adminCount = await this.usersCollection.countDocuments({ orgId, role: 'admin' });
 
       return {
@@ -670,13 +707,18 @@ export class AuthService {
       };
     }
 
-    // If no user found with this orgId, look for users who have this org in their organizations array
+    // If no user found with this orgId, look for users who have this org in their organizations array (legacy)
     const userWithOrg = await this.usersCollection.findOne({ 
       'organizations.orgId': orgId,
       role: 'admin'
     });
 
     if (userWithOrg) {
+      console.log('🔍 Found admin with organizations array:', {
+        userId: userWithOrg.id,
+        email: userWithOrg.email
+      });
+
       const orgMembership = (userWithOrg as any).organizations?.find((org: any) => org.orgId === orgId);
       if (orgMembership) {
         // Count how many users have this organization in their organizations array
@@ -697,6 +739,7 @@ export class AuthService {
       }
     }
 
+    console.log('🔍 No organization found for orgId:', orgId);
     return null;
   }
 
@@ -718,8 +761,21 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    // Update direct orgId matches
+    console.log('🔍 updateOrganizationDescription called for orgId:', orgId, 'description:', orgDescription);
+
+    // Update organizationAccess field (multi-role format)
     const result1 = await this.usersCollection.updateMany(
+      { [`organizationAccess.${orgId}.role`]: 'admin' },
+      { 
+        $set: { 
+          [`organizationAccess.${orgId}.orgDescription`]: orgDescription,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Update legacy orgId matches
+    const result2 = await this.usersCollection.updateMany(
       { orgId, role: 'admin' },
       { 
         $set: { 
@@ -729,8 +785,8 @@ export class AuthService {
       }
     );
 
-    // Update organizations array matches
-    const result2 = await this.usersCollection.updateMany(
+    // Update organizations array matches (legacy)
+    const result3 = await this.usersCollection.updateMany(
       { 
         'organizations.orgId': orgId,
         role: 'admin'
@@ -743,7 +799,9 @@ export class AuthService {
       }
     );
 
-    if (result1.matchedCount === 0 && result2.matchedCount === 0) {
+    console.log('🔍 Update results:', { result1: result1.matchedCount, result2: result2.matchedCount, result3: result3.matchedCount });
+
+    if (result1.matchedCount === 0 && result2.matchedCount === 0 && result3.matchedCount === 0) {
       throw new Error('Organization not found');
     }
   }
@@ -810,8 +868,8 @@ export class AuthService {
     const token = jwt.sign(
       { 
         userId: updatedUser.id, 
-        orgId: updatedUser.orgId, 
-        role: updatedUser.role 
+        orgId: updatedUser.orgId!, 
+        role: updatedUser.role! 
       } as JWTPayload,
       this.JWT_SECRET,
       { expiresIn: this.JWT_EXPIRES_IN }
@@ -821,8 +879,8 @@ export class AuthService {
       token,
       user: {
         id: updatedUser.id,
-        orgId: updatedUser.orgId,
-        role: updatedUser.role,
+        orgId: updatedUser.orgId!,
+        role: updatedUser.role!,
         email: updatedUser.email,
         phone: updatedUser.phone,
         orgName: updatedUser.orgName,
@@ -919,9 +977,9 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
+        orgId: user.orgId!,
         currentOrgId: user.currentOrgId,
-        role: user.role,
+        role: user.role!,
         currentRole: user.currentRole,
         email: user.email,
         orgName: 'No Organization',
@@ -951,8 +1009,8 @@ export class AuthService {
     console.log('🏢 User found:', { 
       id: user.id, 
       email: user.email, 
-      currentRole: user.role,
-      orgId: user.orgId 
+      currentRole: user.role!,
+      orgId: user.orgId! 
     });
 
     // Check if organization name already exists
@@ -977,6 +1035,9 @@ export class AuthService {
     }
     migratedUser.organizationAccess[orgId] = {
       role: 'admin',
+      orgName: orgName,
+      orgDescription: '',
+      isPublic: true,
       joinedAt: new Date()
     };
 
@@ -1061,19 +1122,19 @@ export class AuthService {
     // Generate JWT token
     const token = this.generateToken({
       userId: client.id,
-      orgId: client.orgId,
-      role: client.role
+      orgId: client.orgId!,
+      role: client.role!
     } as JWTPayload);
 
     return {
       token,
       user: {
         id: client.id,
-        orgId: client.orgId,
-        role: client.role,
+        orgId: client.orgId!,
+        role: client.role!,
         email: client.email,
-        orgName: client.orgId ? 'Organization' : 'No Organization',
-        orgDescription: client.orgId ? 'Organization member' : 'You can join an organization after logging in',
+        orgName: client.orgId! ? 'Organization' : 'No Organization',
+        orgDescription: client.orgId! ? 'Organization member' : 'You can join an organization after logging in',
         createdAt: client.createdAt,
         updatedAt: client.updatedAt
       } as any
@@ -1188,8 +1249,8 @@ export class AuthService {
     console.log('🔄 switchOrganizationMultiRole - user before migration:', {
       id: user.id,
       email: user.email,
-      role: user.role,
-      orgId: user.orgId,
+      role: user.role!,
+      orgId: user.orgId!,
       hasOrganizationAccess: !!user.organizationAccess,
       organizationAccessKeys: user.organizationAccess ? Object.keys(user.organizationAccess) : []
     });
@@ -1302,7 +1363,7 @@ export class AuthService {
     const userId = this.generateUserId();
     const user: User = {
       id: userId,
-      orgId: admin.orgId,
+      orgId: admin.orgId!,
       role: 'client',
       email: email.trim(),
       passwordHash: passwordHash,
@@ -1324,18 +1385,18 @@ export class AuthService {
     // Generate JWT token
     const token = this.generateToken({
       userId: user.id,
-      orgId: user.orgId,
-      role: user.role
+      orgId: user.orgId!,
+      role: user.role!
     } as JWTPayload);
 
     return {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
-        role: user.role,
+        orgId: user.orgId!,
+        role: user.role!,
         email: user.email,
-        orgName: admin.orgName || `Organization ${admin.orgId}`,
+        orgName: admin.orgName || `Organization ${admin.orgId!}`,
         orgDescription: (admin as any).orgDescription || '',
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
@@ -1388,9 +1449,9 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId,
+        orgId: user.orgId!,
         currentOrgId: user.currentOrgId,
-        role: user.role,
+        role: user.role!,
         currentRole: user.currentRole,
         email: user.email,
         orgName: organization?.name || 'No Organization',
@@ -1426,7 +1487,7 @@ export class AuthService {
 
     // Only delete if user is actually a guest
     const user = await this.usersCollection.findOne({ id: userId });
-    if (user && user.role === 'guest') {
+    if (user && user.role! === 'guest') {
       await this.usersCollection.deleteOne({ id: userId });
       console.log(`🗑️ Cleaned up guest user ${userId} on logout`);
     }
@@ -1442,7 +1503,7 @@ export class AuthService {
 
     // Find the user (all guests now have database records)
     const user = await this.usersCollection.findOne({ id: userId });
-    console.log('🔍 User found in database:', user ? { id: user.id, email: user.email, role: user.role } : 'NOT FOUND');
+    console.log('🔍 User found in database:', user ? { id: user.id, email: user.email, role: user.role! } : 'NOT FOUND');
     
     if (!user) {
       // Let's also check if user exists with different query
@@ -1472,7 +1533,7 @@ export class AuthService {
       orgName: organization.name,
       orgDescription: organization.description,
       currentOrgId: orgId,
-      currentRole: user.role, // Keep existing role (guest stays guest, client stays client)
+      currentRole: 'client', // When joining an organization, user becomes a client
       updatedAt: new Date()
     };
 
@@ -1481,7 +1542,7 @@ export class AuthService {
       migratedUser.organizationAccess = {};
     }
     migratedUser.organizationAccess[orgId] = {
-      role: user.role as 'admin' | 'client' | 'guest',
+      role: 'client', // When joining an organization, user becomes a client
       joinedAt: new Date()
     };
     setData.organizationAccess = migratedUser.organizationAccess;
@@ -1501,18 +1562,36 @@ export class AuthService {
     // Generate new multi-role JWT token with updated organization
     const token = this.generateMultiRoleToken(updatedUser, orgId);
 
+    // Build accessible organizations info
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+    
+    if (updatedUser.organizationAccess) {
+      for (const [orgId, access] of Object.entries(updatedUser.organizationAccess)) {
+        const org = await this.getOrganization(orgId);
+        if (org) {
+          accessibleOrgs[orgId] = {
+            role: access.role,
+            orgName: org.name,
+            orgDescription: org.description,
+            isPublic: org.isPublic
+          };
+        }
+      }
+    }
+
     return {
       token,
       user: {
         id: updatedUser.id,
-        orgId: updatedUser.orgId,
-        currentOrgId: updatedUser.currentOrgId || updatedUser.orgId,
-        role: updatedUser.role,
-        currentRole: updatedUser.currentRole || updatedUser.role,
+        orgId: updatedUser.orgId!,
+        currentOrgId: updatedUser.currentOrgId || updatedUser.orgId!,
+        role: updatedUser.role!,
+        currentRole: updatedUser.currentRole || updatedUser.role!,
         email: updatedUser.email,
         orgName: updatedUser.orgName || organization.name,
         orgDescription: updatedUser.orgDescription || organization.description,
         organizationAccess: updatedUser.organizationAccess,
+        accessibleOrgs: accessibleOrgs,
         createdAt: updatedUser.createdAt,
         updatedAt: updatedUser.updatedAt
       } as any

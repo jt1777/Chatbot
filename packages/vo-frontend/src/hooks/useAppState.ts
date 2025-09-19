@@ -3,7 +3,7 @@ import { useDocumentManagement } from './useDocumentManagement';
 import { useChat } from './useChat';
 import { useOrganization } from './useOrganization';
 
-export const useAppState = (token: string | null, userId: string | undefined, isAdmin: boolean, isClient: boolean, userRole?: string) => {
+export const useAppState = (token: string | null, userId: string | undefined, isAdmin: boolean, isClient: boolean, currentRole?: string) => {
   // Tab management
   const [currentTab, setCurrentTab] = useState<'search' | 'chat' | 'documents' | 'organizations'>('search');
   const [clientCurrentTab, setClientCurrentTab] = useState<'search' | 'chat' | 'organizations'>('search');
@@ -15,7 +15,7 @@ export const useAppState = (token: string | null, userId: string | undefined, is
 
   // Load data when switching tabs
   useEffect(() => {
-    if (currentTab === 'documents' && userRole !== 'guest') {
+    if (currentTab === 'documents' && currentRole !== 'guest') {
       documentManagement.loadDocumentStats();
       documentManagement.loadRagConfig();
     } else if (currentTab === 'organizations') {
@@ -23,18 +23,18 @@ export const useAppState = (token: string | null, userId: string | undefined, is
       organization.loadUserOrganizations();
       organization.loadActiveInvites(); // Load invites in organizations tab now
     }
-  }, [currentTab, userRole]);
+  }, [currentTab, currentRole]);
 
   // Load client organization info when switching to client profile
   useEffect(() => {
-    //console.log('useAppState useEffect - clientCurrentTab:', clientCurrentTab, 'isClient:', isClient, 'userRole:', userRole);
+    //console.log('useAppState useEffect - clientCurrentTab:', clientCurrentTab, 'isClient:', isClient, 'currentRole:', currentRole);
     if (clientCurrentTab === 'organizations' && isClient) {
       //console.log('Loading client organization info...');
       organization.loadClientOrganizationInfo();
     } else {
       //console.log('Skipping client organization info load - not on organizations tab or not a client');
     }
-  }, [clientCurrentTab, isClient, userRole]);
+  }, [clientCurrentTab, isClient, currentRole]);
 
   // Use refs to store the reset functions to avoid dependency issues
   const resetFunctionsRef = useRef({

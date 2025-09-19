@@ -315,7 +315,7 @@ app.get('/api/orgs/search', async (req, res) => {
     }
     
     // Only return public organizations for search
-    const publicFilteredOrgs = filteredOrgs.filter(org => org.isPublic !== false);
+    const publicFilteredOrgs = filteredOrgs.filter(org => org.isPublic === true);
     
     res.json(publicFilteredOrgs);
   } catch (error: any) {
@@ -489,7 +489,10 @@ app.post('/api/org/join', async (req, res) => {
 app.get('/api/org/info', authenticateToken, requireUser, async (req, res) => {
   try {
     const user = (req as any).user;
-    const organization = await authService.getOrganization(user.orgId);
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+    console.log('🔍 /api/org/info - using orgId:', orgId, 'from user:', { currentOrgId: user.currentOrgId, orgId: user.orgId });
+    const organization = await authService.getOrganization(orgId);
     
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
@@ -512,7 +515,11 @@ app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, 
       return res.status(400).json({ error: 'Organization description is required' });
     }
 
-    await authService.updateOrganizationDescription(user.orgId, orgDescription);
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+    console.log('🔍 /api/org/description - using orgId:', orgId, 'for user:', user.email);
+    
+    await authService.updateOrganizationDescription(orgId, orgDescription);
     res.json({ success: true, message: 'Organization description updated successfully' });
   } catch (error: any) {
     console.error('Update organization description error:', error);

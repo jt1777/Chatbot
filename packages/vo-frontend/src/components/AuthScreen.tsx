@@ -478,7 +478,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 1 ) {
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
@@ -535,7 +535,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 1 ) {
       console.log('Validation failed: password too short');
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;

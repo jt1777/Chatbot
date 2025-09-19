@@ -32,19 +32,31 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
   const [newOrgName, setNewOrgName] = useState<string>('');
   const [isCreatingOrg, setIsCreatingOrg] = useState<boolean>(false);
 
-  const isGuest = user?.currentRole === 'guest' || user?.role === 'guest';
+  const isGuest = user?.currentRole === 'guest';
 
   // Load user's organizations
   useEffect(() => {
     loadUserOrganizations();
   }, [user]);
 
+  // Debug rendering
+  useEffect(() => {
+    console.log('🔍 Rendering check - isGuest:', isGuest, 'userOrganizations.length:', userOrganizations.length, 'userOrganizations:', userOrganizations);
+  }, [isGuest, userOrganizations]);
+
   const loadUserOrganizations = async () => {
-    if (!user?.accessibleOrgs) return;
+    console.log('🔍 loadUserOrganizations called for user:', user?.email, 'currentRole:', user?.currentRole);
+    console.log('🔍 user.accessibleOrgs:', user?.accessibleOrgs);
+    
+    if (!user?.accessibleOrgs) {
+      console.log('🔍 No accessibleOrgs found, returning');
+      return;
+    }
     
     const userOrgs: Organization[] = [];
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
       const access = orgAccess as any;
+      console.log('🔍 Processing org:', orgId, 'access:', access);
       userOrgs.push({
         orgId: orgId,
         name: access.orgName || 'Unknown Organization',
@@ -53,6 +65,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         userRole: access.role
       });
     }
+    console.log('🔍 Final userOrgs:', userOrgs);
     setUserOrganizations(userOrgs);
   };
 
@@ -84,6 +97,22 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       onOrganizationSelected();
     } catch (error) {
       console.error('Error switching organization:', error);
+    }
+  };
+
+  // Handle organization click - either switch or join based on membership
+  const handleOrganizationClick = async (orgId: string) => {
+    // Check if user is already a member of this organization
+    const isMember = user?.accessibleOrgs && user.accessibleOrgs[orgId];
+    
+    if (isMember) {
+      // User is already a member - switch to this organization
+      console.log('🔄 User is already a member, switching to organization:', orgId);
+      await handleSelectOrganization(orgId);
+    } else {
+      // User is not a member - join the organization
+      console.log('🔄 User is not a member, joining organization:', orgId);
+      await handleJoinOrganization(orgId);
     }
   };
 
@@ -259,14 +288,32 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
                     borderWidth: 1,
                     borderColor: '#E5E7EB',
                   }}
-                  onPress={() => handleJoinOrganization(org.orgId)}
+                  onPress={() => handleOrganizationClick(org.orgId)}
                 >
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
-                    {org.name || 'Unnamed Organization'}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: '#6B7280' }}>
-                    {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
-                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
+                        {org.name || 'Unnamed Organization'}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#6B7280' }}>
+                        {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
+                      </Text>
+                    </View>
+                    {user?.accessibleOrgs && user.accessibleOrgs[org.orgId] && (
+                      <View
+                        style={{
+                          backgroundColor: user.accessibleOrgs[org.orgId].role === 'admin' ? '#DC2626' : '#2563EB',
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: 'white' }}>
+                          {user.accessibleOrgs[org.orgId].role.toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
               ))
             ) : (

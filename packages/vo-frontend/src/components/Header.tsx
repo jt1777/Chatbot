@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   onClientTabChange,
 }) => {
   // Check if guest has selected an organization
-  const isGuest = user?.currentRole === 'guest' || user?.role === 'guest';
+  const isGuest = user?.currentRole === 'guest';
   const guestHasOrganization = isGuest && user?.orgName && user?.orgName !== 'No Organization';
   const shouldDisableTabsForGuest = isGuest && !guestHasOrganization;
   
@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* User Info */}
       <View style={{ marginBottom: 12 }}>
         <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 4 }}>
-          {isAdmin ? `Admin: ${user?.email}` : `Client: ${(user?.currentRole === 'guest' || user?.role === 'guest') ? 'Guest' : (user?.email || user?.phone || 'Guest')}`}
+          {isAdmin ? `Admin: ${user?.email}` : `Client: ${user?.currentRole === 'guest' ? 'Guest' : (user?.email || user?.phone || 'Guest')}`}
         </Text>
         <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
           Org: {user?.orgName || 'No Organization'}

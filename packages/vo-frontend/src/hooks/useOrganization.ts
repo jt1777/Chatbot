@@ -86,10 +86,17 @@ export const useOrganization = (token: string | null) => {
 
   const loadOrganizationInfo = useCallback(async () => {
     // Skip API call for guests
-    if ((user as any)?.role === 'guest' || !authToken) {
+    if ((user as any)?.currentRole === 'guest' || !authToken) {
       //console.log('Skipping organization info load for guest user');
       return;
     }
+
+    console.log('🔄 Loading organization info for user:', {
+      userId: user?.id,
+      currentOrgId: user?.currentOrgId,
+      orgId: user?.orgId,
+      currentRole: user?.currentRole
+    });
 
     try {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
@@ -98,6 +105,13 @@ export const useOrganization = (token: string | null) => {
           'Authorization': `Bearer ${authToken}`
         }
       });
+      
+      console.log('🔄 Organization info response:', {
+        name: response.data.name,
+        description: response.data.description,
+        isPublic: response.data.isPublic
+      });
+      
       setOrgDescription(response.data.description || '');
       setIsPublic(response.data.isPublic !== undefined ? response.data.isPublic : true);
     } catch (error) {
@@ -105,12 +119,32 @@ export const useOrganization = (token: string | null) => {
     }
   }, [authToken, user]);
 
+  // Clear organization data when user changes (e.g., after login/logout)
+  useEffect(() => {
+    if (!user || !authToken) {
+      setOrgDescription('');
+      setClientOrgInfo(null);
+      setIsPublic(true);
+    }
+  }, [user, authToken]);
+
+  // Clear organization data when switching organizations
+  useEffect(() => {
+    if (user && authToken) {
+      console.log('🔄 Organization switched, clearing description. New currentOrgId:', user?.currentOrgId);
+      // Clear description when currentOrgId changes to avoid showing old organization's data
+      setOrgDescription('');
+    }
+  }, [user?.currentOrgId]);
+
   // Refresh organization description when user's current organization changes
   useEffect(() => {
-    if (user?.orgId && authToken) {
+    if ((user?.currentOrgId || user?.orgId) && authToken) {
+      // Clear the description first to avoid showing old organization's description
+      setOrgDescription('');
       loadOrganizationInfo();
     }
-  }, [user?.orgId, authToken, loadOrganizationInfo]);
+  }, [user?.currentOrgId, user?.orgId, authToken, loadOrganizationInfo]);
 
 
   const updateOrganizationDescription = useCallback(async () => {
@@ -133,7 +167,7 @@ export const useOrganization = (token: string | null) => {
   }, [orgDescription, authToken, loadOrganizationInfo]);
 
   const loadClientOrganizationInfo = useCallback(async () => {
-    //console.log('loadClientOrganizationInfo called with authToken:', !!authToken, 'user role:', (user as any)?.role);
+    //console.log('loadClientOrganizationInfo called with authToken:', !!authToken, 'user role:', (user as any)?.currentRole);
     
     // Skip API call if no auth token
     if (!authToken) {
@@ -167,7 +201,7 @@ export const useOrganization = (token: string | null) => {
 
   const loadUserOrganizations = useCallback(async () => {
     // Skip API call for guests
-    if ((user as any)?.role === 'guest' || !authToken) {
+    if ((user as any)?.currentRole === 'guest' || !authToken) {
       console.log('Skipping user organizations load for guest user');
       return;
     }
@@ -186,9 +220,10 @@ export const useOrganization = (token: string | null) => {
   }, [authToken, user]);
 
   const switchOrganization = useCallback(async (orgId: string) => {
+    console.log('🔄 Switching to organization:', orgId);
     setIsSwitchingOrg(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/user/switch-organization`, {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/multi-role/switch-organization`, {
         orgId
       }, {
         headers: {
@@ -197,8 +232,16 @@ export const useOrganization = (token: string | null) => {
         }
       });
 
+      console.log('🔄 Switch organization response:', response.data);
+
       // Update the token and user info
       await updateUser(response.data.token, response.data.user);
+      
+      console.log('🔄 User updated after switch:', {
+        currentOrgId: response.data.user.currentOrgId,
+        currentRole: response.data.user.currentRole,
+        orgName: response.data.user.orgName
+      });
       
       // Show success toast
       Toast.show({

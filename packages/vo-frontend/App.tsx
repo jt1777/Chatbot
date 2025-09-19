@@ -38,7 +38,7 @@ function MainApp() {
   const [showOrganizationSelection, setShowOrganizationSelection] = React.useState(false);
   
   // Use custom hook for all app state management
-  const appState = useAppState(token, user?.id, isAdmin, isClient, user?.role);
+  const appState = useAppState(token, user?.id, isAdmin, isClient, user?.currentRole);
 
   // Destructure the app state for easier access
   const {
@@ -194,7 +194,7 @@ function MainApp() {
           input={input}
           isLoading={chatLoading}
           strictMode={strictMode}
-          isGuest={user?.currentRole === 'guest' || user?.role === 'guest'}
+          isGuest={user?.currentRole === 'guest'}
           onInputChange={setInput}
           onSendMessage={sendMessage}
           onClearChat={clearChat}

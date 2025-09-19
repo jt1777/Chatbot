@@ -33,8 +33,8 @@ export const requireRole = (allowedRoles: ('client' | 'admin' | 'guest')[]) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Handle both legacy role field and new currentRole field
-    const userRole = user.currentRole || user.role;
+    // Use only currentRole field
+    const userRole = user.currentRole;
     
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });

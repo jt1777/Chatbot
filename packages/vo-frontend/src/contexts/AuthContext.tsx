@@ -6,7 +6,7 @@ import { API_BASE_URL } from '../config/api';
 interface User {
   id: string;
   orgId: string; // Legacy field for backward compatibility
-  role: 'org_admin' | 'client' | 'guest'; // Legacy field for backward compatibility
+  role: 'admin' | 'client' | 'guest'; // Legacy field for backward compatibility
   email?: string;
   phone?: string;
   orgName?: string;
@@ -193,9 +193,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [token]);
 
-  // Role checking with multi-role support
-  const isAdmin = user?.currentRole === 'admin' || user?.role === 'org_admin';
-  const isClient = user?.currentRole === 'client' || user?.currentRole === 'guest' || user?.role === 'client' || user?.role === 'guest';
+  // Role checking with multi-role support - prioritize currentRole
+  const isAdmin = user?.currentRole === 'admin';
+  const isClient = user?.currentRole === 'client' || user?.currentRole === 'guest';
 
   const value: AuthContextType = {
     user,
