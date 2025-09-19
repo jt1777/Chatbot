@@ -13,6 +13,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       return res.status(401).json({ error: 'Access token required' });
     }
 
+    // All tokens are now proper JWTs (including guests)
     const decoded = await authService.verifyToken(token);
     
     // Attach user info to request
@@ -24,7 +25,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
   }
 };
 
-export const requireRole = (allowedRoles: ('client' | 'org_admin')[]) => {
+export const requireRole = (allowedRoles: ('client' | 'admin' | 'guest')[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
     
@@ -32,7 +33,10 @@ export const requireRole = (allowedRoles: ('client' | 'org_admin')[]) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!allowedRoles.includes(user.role)) {
+    // Handle both legacy role field and new currentRole field
+    const userRole = user.currentRole || user.role;
+    
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
@@ -40,7 +44,7 @@ export const requireRole = (allowedRoles: ('client' | 'org_admin')[]) => {
   };
 };
 
-export const requireOrgAdmin = requireRole(['org_admin']);
-export const requireUser = requireRole(['client', 'org_admin']);
+export const requireOrgAdmin = requireRole(['admin']);
+export const requireUser = requireRole(['client', 'admin', 'guest']);
 
 export { authService };

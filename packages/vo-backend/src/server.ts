@@ -52,7 +52,7 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
-// Initialize services
+// Initialize services (non-blocking, allows guest access even if database is temporarily unavailable)
 documentService.initialize().catch(console.error);
 authServiceInstance.initialize().catch(console.error);
 
@@ -95,6 +95,149 @@ app.post('/api/auth/client/token', async (req, res) => {
   }
 });
 
+// Client login with email/password
+app.post('/api/auth/client/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const result = await authServiceInstance.loginClient(email, password);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Client login error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Client registration endpoint
+app.post('/api/auth/client/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const result = await authServiceInstance.registerClient(email, password);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Client registration error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Client invitation endpoint
+app.post('/api/auth/client/invitation', async (req, res) => {
+  try {
+    const { email, password, inviteCode } = req.body;
+    
+    if (!email || !password || !inviteCode) {
+      return res.status(400).json({ error: 'Email, password, and invite code are required' });
+    }
+
+    const result = await authServiceInstance.joinClientWithInvite(email, password, inviteCode);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Client invitation error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Guest authentication endpoint - creates proper JWT tokens
+app.post('/api/auth/guest', async (req, res) => {
+  try {
+    console.log('🎭 Creating guest user with database record');
+    
+    // Use the proper createGuest method which creates a database record
+    const result = await authServiceInstance.createGuest();
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error('Guest authentication error:', error);
+    
+    // Fallback for development when database is unavailable
+    if (error.message === 'Auth service not initialized') {
+      console.log('🎭 Database unavailable, creating temporary guest token');
+      
+      const guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const jwtPayload = {
+        userId: guestId,
+        orgId: '',
+        role: 'guest',
+        currentRole: 'guest',
+        email: 'guest@temporary.local',
+        currentOrgId: '',
+        accessibleOrgs: {}
+      };
+      
+      const guestToken = authServiceInstance.generateGuestToken(jwtPayload);
+      const guestUser = {
+        id: guestId,
+        email: 'guest@temporary.local',
+        role: 'guest',
+        currentRole: 'guest',
+        isGuest: true,
+        guestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        orgId: '',
+        orgName: '',
+        currentOrgId: '',
+        accessibleOrgs: {}
+      };
+      
+      res.json({ token: guestToken, user: guestUser });
+    } else {
+      res.status(400).json({ error: error.message });
+    }
+  }
+});
+
+// User logout endpoint - cleans up guest records
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    
+    // Clean up guest records on logout
+    await authServiceInstance.cleanupGuestOnLogout(userId);
+    
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cleanup expired guests endpoint (admin only)
+app.post('/api/admin/cleanup-guests', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    await authServiceInstance.cleanupExpiredGuests();
+    res.json({ success: true, message: 'Expired guests cleaned up' });
+  } catch (error: any) {
+    console.error('Guest cleanup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Client join organization endpoint
+app.post('/api/client/join-organization', authenticateToken, async (req, res) => {
+  try {
+    const { orgId } = req.body;
+    const userId = (req as any).user.userId;
+    
+    if (!orgId) {
+      return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    const result = await authServiceInstance.joinClientToOrganization(userId, orgId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Client join organization error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Get organizations for client selection
 app.get('/api/orgs', async (req, res) => {
   try {
@@ -102,13 +245,164 @@ app.get('/api/orgs', async (req, res) => {
     res.json(orgs);
   } catch (error: any) {
     console.error('Get organizations error:', error);
-    res.status(500).json({ error: error.message });
+    
+    // Provide more helpful error messages
+    if (error.message === 'Auth service not initialized') {
+      res.status(503).json({ 
+        error: 'Database connection unavailable. Please try again in a moment.',
+        organizations: [] // Return empty array as fallback
+      });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 
 // Token verification
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
   res.json({ valid: true, user: (req as any).user });
+});
+
+// Get public organizations only
+app.get('/api/orgs/public', async (req, res) => {
+  try {
+    const allOrgs = await authServiceInstance.getOrganizations();
+    
+    // Filter for public organizations only
+    const publicOrgs = allOrgs.filter(org => org.isPublic !== false);
+    
+    res.json(publicOrgs);
+  } catch (error: any) {
+    console.error('Get public organizations error:', error);
+    
+    if (error.message === 'Auth service not initialized') {
+      res.status(503).json({ 
+        error: 'Database connection unavailable. Please try again in a moment.',
+        organizations: [] 
+      });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// Search organizations by name
+app.get('/api/orgs/search', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+    const allOrgs = await authServiceInstance.getOrganizations();
+    
+    let filteredOrgs = allOrgs;
+    
+    // Filter by search query if provided
+    if (query && query.trim()) {
+      const searchTerm = query.trim().toLowerCase();
+      filteredOrgs = allOrgs.filter(org => 
+        org.name.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    // Only return public organizations for search
+    const publicFilteredOrgs = filteredOrgs.filter(org => org.isPublic !== false);
+    
+    res.json(publicFilteredOrgs);
+  } catch (error: any) {
+    console.error('Search organizations error:', error);
+    
+    if (error.message === 'Auth service not initialized') {
+      res.status(503).json({ 
+        error: 'Database connection unavailable. Please try again in a moment.',
+        organizations: [] 
+      });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// Multi-role authentication endpoints
+app.post('/api/auth/multi-role/login', async (req, res) => {
+  try {
+    const { email, password, preferredOrgId } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const result = await authService.loginMultiRole(email, password, preferredOrgId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Multi-role login error:', error);
+    res.status(401).json({ error: error.message });
+  }
+});
+
+// Switch organization (multi-role)
+app.post('/api/auth/multi-role/switch-organization', authenticateToken, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { orgId } = req.body;
+    
+    console.log('🔄 Switch organization endpoint called:', {
+      userId: user.userId,
+      targetOrgId: orgId,
+      currentOrgId: user.orgId,
+      currentRole: user.role
+    });
+    
+    if (!orgId) {
+      return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    const result = await authService.switchOrganizationMultiRole(user.userId, orgId);
+    console.log('🔄 Switch organization successful');
+    res.json(result);
+  } catch (error: any) {
+    console.error('❌ Switch organization error:', error.message);
+    console.error('❌ Full error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get user's accessible organizations (multi-role)
+app.get('/api/auth/multi-role/organizations', authenticateToken, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    
+    // Get user from database to get full organizationAccess
+    const userData = await authService.getUserById(user.userId);
+    if (!userData) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Migrate user if needed
+    const migratedUser = await (authService as any).migrateUserToMultiRole(userData);
+    
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+    
+    if (migratedUser.organizationAccess) {
+      for (const [orgId, access] of Object.entries(migratedUser.organizationAccess)) {
+        const org = await authService.getOrganization(orgId);
+        if (org) {
+          accessibleOrgs[orgId] = {
+            role: (access as any).role,
+            orgName: org.name,
+            orgDescription: org.description,
+            isPublic: org.isPublic
+          };
+        }
+      }
+    }
+
+    res.json({
+      currentOrgId: migratedUser.currentOrgId,
+      currentRole: migratedUser.currentRole,
+      accessibleOrgs: accessibleOrgs
+    });
+  } catch (error: any) {
+    console.error('Get organizations error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Organization management endpoints
@@ -192,6 +486,24 @@ app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, 
     res.json({ success: true, message: 'Organization description updated successfully' });
   } catch (error: any) {
     console.error('Update organization description error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update organization visibility (public/private)
+app.put('/api/org/visibility', authenticateToken, requireOrgAdmin, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { isPublic } = req.body;
+
+    if (typeof isPublic !== 'boolean') {
+      return res.status(400).json({ error: 'isPublic must be a boolean value' });
+    }
+
+    await authService.updateOrganizationVisibility(user.orgId, isPublic);
+    res.json({ success: true, message: `Organization is now ${isPublic ? 'public' : 'private'}` });
+  } catch (error: any) {
+    console.error('Update organization visibility error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -420,14 +732,14 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
     // Process each file
     for (const file of files) {
       const { originalname, mimetype, buffer } = file;
-      let documents;
+    let documents;
 
-      if (mimetype === 'application/pdf') {
+    if (mimetype === 'application/pdf') {
         documents = await documentService.processPDFBuffer(buffer, originalname, user.orgId);
-      } else if (mimetype === 'text/plain') {
-        const content = buffer.toString('utf-8');
+    } else if (mimetype === 'text/plain') {
+      const content = buffer.toString('utf-8');
         documents = await documentService.processTextFile(content, originalname, user.orgId);
-      } else {
+    } else {
         console.warn(`Skipping unsupported file type: ${mimetype} for file: ${originalname}`);
         continue;
       }
@@ -443,8 +755,8 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
 
       allDocuments.push(...documentsWithOrgId);
       processedFiles.push(originalname);
-      
-      // Track the document
+    
+    // Track the document
       await documentService.trackDocument(originalname, 'upload', documents.length, user.orgId);
     }
 

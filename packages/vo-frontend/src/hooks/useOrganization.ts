@@ -9,6 +9,7 @@ export const useOrganization = (token: string | null) => {
   
   // Invite management state
   const [inviteEmail, setInviteEmail] = useState<string>('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'client'>('admin');
   const [isCreatingInvite, setIsCreatingInvite] = useState<boolean>(false);
   const [activeInvites, setActiveInvites] = useState<any[]>([]);
 
@@ -20,6 +21,10 @@ export const useOrganization = (token: string | null) => {
   // Organization switching state
   const [userOrganizations, setUserOrganizations] = useState<any[]>([]);
   const [isSwitchingOrg, setIsSwitchingOrg] = useState<boolean>(false);
+
+  // Organization visibility state
+  const [isPublic, setIsPublic] = useState<boolean>(true);
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState<boolean>(false);
 
   const createInvite = useCallback(async () => {
     if (!inviteEmail.trim()) {
@@ -36,7 +41,7 @@ export const useOrganization = (token: string | null) => {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/org/invite`, {
         email: inviteEmail.trim(),
-        role: 'org_admin'
+        role: inviteRole
       }, {
         headers: { 
           'ngrok-skip-browser-warning': 'true',
@@ -67,7 +72,7 @@ export const useOrganization = (token: string | null) => {
     } finally {
       setIsCreatingInvite(false);
     }
-  }, [inviteEmail, authToken]);
+  }, [inviteEmail, inviteRole, authToken]);
 
   const loadActiveInvites = useCallback(async () => {
     try {
@@ -80,6 +85,12 @@ export const useOrganization = (token: string | null) => {
   }, []);
 
   const loadOrganizationInfo = useCallback(async () => {
+    // Skip API call for guests
+    if ((user as any)?.role === 'guest' || !authToken) {
+      console.log('Skipping organization info load for guest user');
+      return;
+    }
+
     try {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
         headers: {
@@ -88,10 +99,11 @@ export const useOrganization = (token: string | null) => {
         }
       });
       setOrgDescription(response.data.description || '');
+      setIsPublic(response.data.isPublic !== undefined ? response.data.isPublic : true);
     } catch (error) {
       console.error('Error loading organization info:', error);
     }
-  }, [authToken]);
+  }, [authToken, user]);
 
   // Refresh organization description when user's current organization changes
   useEffect(() => {
@@ -99,6 +111,7 @@ export const useOrganization = (token: string | null) => {
       loadOrganizationInfo();
     }
   }, [user?.orgId, authToken, loadOrganizationInfo]);
+
 
   const updateOrganizationDescription = useCallback(async () => {
     setIsUpdatingDescription(true);
@@ -120,6 +133,15 @@ export const useOrganization = (token: string | null) => {
   }, [orgDescription, authToken, loadOrganizationInfo]);
 
   const loadClientOrganizationInfo = useCallback(async () => {
+    console.log('loadClientOrganizationInfo called with authToken:', !!authToken, 'user role:', (user as any)?.role);
+    
+    // Skip API call for guests or if no auth token
+    if ((user as any)?.role === 'guest' || !authToken) {
+      console.log('Skipping client organization info load for guest user or no auth token');
+      setClientOrgInfo(null);
+      return;
+    }
+    
     try {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
         headers: {
@@ -127,13 +149,29 @@ export const useOrganization = (token: string | null) => {
           'Authorization': `Bearer ${authToken}`
         }
       });
+      console.log('Client organization info loaded successfully:', response.data);
       setClientOrgInfo(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading client organization info:', error);
+      
+      // If user doesn't have an organization yet (403 error), set default values
+      if (error.response?.status === 403) {
+        console.log('Setting default values for 403 error');
+        setClientOrgInfo({
+          name: 'No Organization',
+          description: 'You can join an organization using the search above.'
+        });
+      }
     }
-  }, [authToken]);
+  }, [authToken, user]);
 
   const loadUserOrganizations = useCallback(async () => {
+    // Skip API call for guests
+    if ((user as any)?.role === 'guest' || !authToken) {
+      console.log('Skipping user organizations load for guest user');
+      return;
+    }
+
     try {
       const response = await axios.get(`${API_BASE_URL}/api/user/organizations`, {
         headers: {
@@ -145,7 +183,7 @@ export const useOrganization = (token: string | null) => {
     } catch (error) {
       console.error('❌ Error loading user organizations:', error);
     }
-  }, [authToken]);
+  }, [authToken, user]);
 
   const switchOrganization = useCallback(async (orgId: string) => {
     setIsSwitchingOrg(true);
@@ -195,9 +233,60 @@ export const useOrganization = (token: string | null) => {
     setIsSwitchingOrg(false);
   }, []);
 
+  // Clear organization state for guests
+  const clearGuestState = useCallback(() => {
+    setClientOrgInfo(null);
+  }, []);
+
+  // Clear organization state when user becomes a guest
+  useEffect(() => {
+    if ((user as any)?.role === 'guest') {
+      console.log('User is guest, clearing organization state');
+      clearGuestState();
+    }
+  }, [(user as any)?.role, clearGuestState]);
+
+  const togglePublicPrivate = useCallback(async () => {
+    setIsUpdatingVisibility(true);
+    try {
+      const newVisibility = !isPublic;
+      await axios.put(`${API_BASE_URL}/api/org/visibility`, {
+        isPublic: newVisibility
+      }, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      setIsPublic(newVisibility);
+      
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Visibility Updated!',
+        text2: `Organization is now ${newVisibility ? 'Public' : 'Private'}`,
+        visibilityTime: 3000,
+      });
+    } catch (error: any) {
+      console.error('Error updating organization visibility:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Update Failed',
+        text2: error.response?.data?.error || 'Failed to update organization visibility',
+        visibilityTime: 4000,
+      });
+    } finally {
+      setIsUpdatingVisibility(false);
+    }
+  }, [isPublic, authToken]);
+
   return {
     // State
     inviteEmail,
+    inviteRole,
     isCreatingInvite,
     activeInvites,
     orgDescription,
@@ -205,9 +294,12 @@ export const useOrganization = (token: string | null) => {
     clientOrgInfo,
     userOrganizations,
     isSwitchingOrg,
+    isPublic,
+    isUpdatingVisibility,
 
     // Actions
     setInviteEmail,
+    setInviteRole,
     createInvite,
     loadActiveInvites,
     setOrgDescription,
@@ -216,6 +308,8 @@ export const useOrganization = (token: string | null) => {
     loadClientOrganizationInfo,
     loadUserOrganizations,
     switchOrganization,
+    togglePublicPrivate,
     resetOrganizationData,
+    clearGuestState,
   };
 };

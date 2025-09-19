@@ -3,6 +3,7 @@ import { View, Text, StatusBar } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/components/AuthScreen';
+import { OrganizationSelectionScreen } from './src/components/OrganizationSelectionScreen';
 import { Header } from './src/components/Header';
 import { ChatInterface } from './src/components/ChatInterface';
 import { DocumentManagement } from './src/components/DocumentManagement';
@@ -34,9 +35,10 @@ interface DocumentStats {
 
 function MainApp() {
   const { user, token, isLoading: authLoading, logout, isAdmin, isClient } = useAuth();
+  const [showOrganizationSelection, setShowOrganizationSelection] = React.useState(false);
   
   // Use custom hook for all app state management
-  const appState = useAppState(token, user?.id, isAdmin, isClient);
+  const appState = useAppState(token, user?.id, isAdmin, isClient, user?.role);
 
   // Destructure the app state for easier access
   const {
@@ -97,6 +99,7 @@ function MainApp() {
     
     // Organization
     inviteEmail,
+    inviteRole,
     isCreatingInvite,
     activeInvites,
     orgDescription,
@@ -104,7 +107,10 @@ function MainApp() {
     clientOrgInfo,
     userOrganizations,
     isSwitchingOrg,
+    isPublic,
+    isUpdatingVisibility,
     setInviteEmail,
+    setInviteRole,
     createInvite,
     loadActiveInvites,
     setOrgDescription,
@@ -112,6 +118,7 @@ function MainApp() {
     loadOrganizationInfo,
     loadClientOrganizationInfo,
     switchOrganization,
+    togglePublicPrivate,
     resetAllData,
   } = appState;
 
@@ -122,12 +129,7 @@ function MainApp() {
     }
   }, [user]);
 
-  // Set default tab for admins to profile
-  React.useEffect(() => {
-    if (isAdmin && currentTab === 'chat') {
-      setCurrentTab('profile');
-    }
-  }, [isAdmin, currentTab]);
+  // Note: Removed automatic tab switching - admins can access all tabs
 
   // Show loading screen while checking authentication
   if (authLoading) {
@@ -149,6 +151,8 @@ function MainApp() {
     );
   }
 
+  // All users go to main app with tabs - no separate organization selection screen
+
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
       <Header
@@ -164,7 +168,27 @@ function MainApp() {
       />
 
       {/* Content Area */}
-      {(isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? (
+      {(isAdmin ? currentTab === 'search' : clientCurrentTab === 'search') ? (
+        <OrganizationSelectionScreen
+          key={user.currentOrgId || user.email}
+          onOrganizationSelected={() => {
+            // Switch to chat tab after joining organization
+            if (isAdmin) {
+              setCurrentTab('chat');
+            } else {
+              setClientCurrentTab('chat');
+            }
+          }}
+          onCreateOrganization={() => {
+            // TODO: Implement create organization flow
+            console.log('Create organization clicked');
+          }}
+          onJoinWithInvite={() => {
+            // TODO: Implement join with invite flow
+            console.log('Join with invite clicked');
+          }}
+        />
+      ) : (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? (
         <ChatInterface
           messages={messages}
           input={input}
@@ -175,7 +199,7 @@ function MainApp() {
           onClearChat={clearChat}
           onToggleStrictMode={() => setStrictMode(!strictMode)}
         />
-      ) : currentTab === 'documents' ? (
+      ) : currentTab === 'documents' && isAdmin ? (
         <DocumentManagement
           documentStats={documentStats}
           showDocumentList={showDocumentList}
@@ -212,26 +236,31 @@ function MainApp() {
           onToggleRagConfig={() => setShowRagConfig(!showRagConfig)}
           onSaveRagConfig={saveRagConfig}
         />
-      ) : (currentTab === 'invites' || currentTab === 'profile') && isAdmin ? (
+      ) : currentTab === 'organizations' && isAdmin ? (
         <AdminTabs
           currentTab={currentTab}
           user={user}
           inviteEmail={inviteEmail}
+          inviteRole={inviteRole}
           isCreatingInvite={isCreatingInvite}
           orgDescription={orgDescription}
           isUpdatingDescription={isUpdatingDescription}
           userOrganizations={userOrganizations}
           isSwitchingOrg={isSwitchingOrg}
+          isPublic={isPublic}
           onInviteEmailChange={setInviteEmail}
+          onInviteRoleChange={setInviteRole}
           onCreateInvite={createInvite}
           onOrgDescriptionChange={setOrgDescription}
           onUpdateOrganizationDescription={updateOrganizationDescription}
           onSwitchOrganization={switchOrganization}
+          onTogglePublicPrivate={togglePublicPrivate}
         />
-      ) : (isClient && clientCurrentTab === 'profile') ? (
-        <ClientProfile
+      ) : clientCurrentTab === 'organizations' && isClient ? (
+        <ClientProfile 
           user={user}
           clientOrgInfo={clientOrgInfo}
+          onRefreshOrgInfo={loadClientOrganizationInfo}
         />
       ) : null}
 

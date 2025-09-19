@@ -113,11 +113,11 @@ export const useDocumentManagement = (token: string | null) => {
 
   // Refresh document stats when user's current organization changes
   useEffect(() => {
-    if (user?.orgId && authToken) {
+    if (user?.orgId && authToken && user?.role !== 'guest') {
       loadDocumentStats();
       loadRagConfig();
     }
-  }, [user?.orgId, authToken, loadDocumentStats, loadRagConfig]);
+  }, [user?.orgId, authToken, user?.role, loadDocumentStats, loadRagConfig]);
 
   const resetDocumentData = useCallback(() => {
     setDocumentStats({ count: 0, documents: [] });

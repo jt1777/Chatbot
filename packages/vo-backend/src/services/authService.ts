@@ -1,29 +1,9 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { MongoClient, Db, Collection } from 'mongodb';
-import { User, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, AuthResponse, JWTPayload, Organization, CreateInviteRequest, InviteResponse, JoinOrganizationRequest } from '@chatbot/shared';
+import { MongoClient, Db, Collection, WriteConcern } from 'mongodb';
+import { User, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, AuthResponse, JWTPayload, Organization, CreateInviteRequest, InviteResponse, JoinOrganizationRequest, GuestAuthRequest, SwitchOrganizationResponse, OrganizationMembership } from '@chatbot/shared';
 
-// Local type definitions for organization switching
-interface OrganizationMembership {
-  orgId: string;
-  orgName: string;
-  role: 'org_admin' | 'client';
-  joinedAt: Date;
-}
-
-interface SwitchOrganizationResponse {
-  token: string;
-  user: {
-    id: string;
-    orgId: string;
-    role: 'org_admin' | 'client';
-    email?: string;
-    phone?: string;
-    orgName?: string;
-    orgDescription?: string;
-    organizations?: OrganizationMembership[];
-  };
-}
+// Migration helper for converting old user format to new multi-role format
 
 export class AuthService {
   private client: MongoClient | null = null;
@@ -43,7 +23,21 @@ export class AuthService {
         throw new Error('MONGODB_URI environment variable is required');
       }
 
-      this.client = new MongoClient(mongoUri);
+      // MongoDB connection options with SSL/TLS configuration
+      const options = {
+        tls: true,
+        tlsAllowInvalidCertificates: false,
+        tlsAllowInvalidHostnames: false,
+        retryWrites: true,
+        writeConcern: new WriteConcern('majority'),
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 30000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+        minPoolSize: 2,
+      };
+
+      this.client = new MongoClient(mongoUri, options);
       await this.client.connect();
       this.db = this.client.db();
       this.usersCollection = this.db.collection<User>('users');
@@ -58,6 +52,64 @@ export class AuthService {
     }
   }
 
+  // Migration helper: Convert old user format to new multi-role format
+  private async migrateUserToMultiRole(user: any): Promise<User> {
+    // If user already has organizationAccess, return as-is
+    if (user.organizationAccess) {
+      return user as User;
+    }
+
+    // Convert old format to new format
+    const migratedUser: User = {
+      ...user,
+      organizationAccess: {},
+      currentOrgId: user.orgId || '',
+      currentRole: this.convertLegacyRole(user.role),
+    };
+
+    // If user has an organization, add it to organizationAccess
+    if (user.orgId && user.orgName) {
+      migratedUser.organizationAccess![user.orgId] = {
+        role: this.convertLegacyRole(user.role),
+        joinedAt: user.createdAt || new Date(),
+      };
+    }
+
+    // If user has organizations array (for admins), add them too
+    if (user.organizations && Array.isArray(user.organizations)) {
+      for (const org of user.organizations) {
+        migratedUser.organizationAccess![org.orgId] = {
+          role: this.convertLegacyRole(org.role),
+          joinedAt: org.joinedAt || new Date(),
+        };
+      }
+    }
+
+    return migratedUser;
+  }
+
+  // Convert legacy role format to new format
+  private convertLegacyRole(legacyRole: string): 'admin' | 'client' | 'guest' {
+    if (legacyRole === 'org_admin' || legacyRole === 'admin') {
+      return 'admin';
+    }
+    if (legacyRole === 'client') {
+      return 'client';
+    }
+    if (legacyRole === 'guest') {
+      return 'guest';
+    }
+    return 'guest'; // Default fallback
+  }
+
+  // Helper function to create role queries that support both old and new role names
+  private createRoleQuery(role: 'admin' | 'client' | 'guest'): any {
+    if (role === 'admin') {
+      return { $in: ['admin', 'org_admin'] };
+    }
+    return role;
+  }
+
   // Admin registration (creates new org + admin)
   async registerAdmin(registerData: AdminRegisterRequest): Promise<AuthResponse> {
     if (!this.usersCollection) {
@@ -70,7 +122,7 @@ export class AuthService {
     if (orgName) {
       const existingOrg = await this.usersCollection.findOne({ 
         orgName: { $regex: new RegExp(`^${orgName.trim()}$`, 'i') },
-        role: 'org_admin'
+        role: this.createRoleQuery('admin')
       });
       if (existingOrg) {
         throw new Error('Organization name has already been taken');
@@ -82,7 +134,7 @@ export class AuthService {
       const existingEmailOrg = await this.usersCollection.findOne({ 
         email,
         orgName: { $regex: new RegExp(`^${orgName.trim()}$`, 'i') },
-        role: 'org_admin'
+        role: this.createRoleQuery('admin')
       });
       if (existingEmailOrg) {
         throw new Error('Email and organization has already been created');
@@ -103,7 +155,8 @@ export class AuthService {
         orgId: finalOrgId,
         orgName: orgName || `Organization ${finalOrgId}`,
         orgDescription: '',
-        role: 'org_admin',
+        isPublic: true,
+        role: this.createRoleQuery('admin'),
         joinedAt: new Date()
       });
 
@@ -114,6 +167,7 @@ export class AuthService {
           $set: {
             orgId: finalOrgId, // Switch to new organization
             orgName: orgName || `Organization ${finalOrgId}`,
+            isPublic: true,
             organizations: updatedOrganizations,
             inviteCode: inviteCode,
             adminCount: (existingAdmin.adminCount || 1) + 1,
@@ -155,10 +209,11 @@ export class AuthService {
       const user: User = {
         id: userId,
         orgId: finalOrgId,
-        role: 'org_admin',
+        role: this.createRoleQuery('admin'),
         email,
         passwordHash,
         orgName: orgName || `Organization ${finalOrgId}`,
+        isPublic: true,
         inviteCode,
         adminCount: 1,
         createdAt: new Date(),
@@ -170,7 +225,8 @@ export class AuthService {
         orgId: finalOrgId,
         orgName: orgName || `Organization ${finalOrgId}`,
         orgDescription: '',
-        role: 'org_admin',
+        isPublic: true,
+        role: this.createRoleQuery('admin'),
         joinedAt: new Date()
       }];
 
@@ -207,7 +263,7 @@ export class AuthService {
     const { email, password } = loginData;
 
     // Find admin user
-    const user = await this.usersCollection.findOne({ email, role: 'org_admin' });
+    const user = await this.usersCollection.findOne({ email, role: this.createRoleQuery('admin') });
     if (!user || !user.passwordHash) {
       throw new Error('Invalid email or password');
     }
@@ -323,17 +379,18 @@ export class AuthService {
   }
 
   // Get all organizations (for client selection)
-  async getOrganizations(): Promise<{ orgId: string; name: string; adminCount: number }[]> {
+  async getOrganizations(): Promise<{ orgId: string; name: string; adminCount: number; isPublic?: boolean }[]> {
     if (!this.usersCollection) {
       throw new Error('Auth service not initialized');
     }
 
     const orgs = await this.usersCollection.aggregate([
-      { $match: { role: 'org_admin' } },
+      { $match: { role: this.createRoleQuery('admin') } },
       { 
         $group: { 
           _id: '$orgId', 
           name: { $first: '$orgName' }, // Use orgName from admin user
+          isPublic: { $first: '$isPublic' }, // Include isPublic field
           adminCount: { $sum: 1 }
         } 
       },
@@ -343,13 +400,46 @@ export class AuthService {
     return orgs.map(org => ({
       orgId: org._id,
       name: org.name || org._id, // Fallback to orgId if orgName is not set
-      adminCount: org.adminCount
+      adminCount: org.adminCount,
+      isPublic: org.isPublic !== false // Default to true if not set
     }));
   }
 
   private generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>, expiresIn?: string): string {
     return jwt.sign(payload, this.JWT_SECRET, { expiresIn: expiresIn || this.JWT_EXPIRES_IN } as any);
   }
+
+  // Generate JWT token for guests (public method for server use)
+  generateGuestToken(payload: any): string {
+    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: '24h' } as any);
+  }
+
+  // Generate token with multi-role organization access
+  private generateMultiRoleToken(user: User, currentOrgId: string, expiresIn?: string): string {
+    const accessibleOrgs: { [orgId: string]: 'admin' | 'client' | 'guest' } = {};
+    
+    // Build accessible organizations from user's organizationAccess
+    if (user.organizationAccess) {
+      for (const [orgId, access] of Object.entries(user.organizationAccess)) {
+        accessibleOrgs[orgId] = access.role;
+      }
+    }
+
+    const currentRole = user.organizationAccess?.[currentOrgId]?.role || 'guest';
+    
+    const payload: Omit<JWTPayload, 'iat' | 'exp'> = {
+      userId: user.id,
+      orgId: currentOrgId, // Required for backward compatibility
+      role: currentRole as any, // Using new standardized role names
+      email: user.email,
+      currentOrgId: currentOrgId,
+      currentRole: currentRole,
+      accessibleOrgs: accessibleOrgs
+    };
+
+    return jwt.sign(payload, this.JWT_SECRET, { expiresIn: expiresIn || this.JWT_EXPIRES_IN } as any);
+  }
+
 
   private generateUserId(): string {
     return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -374,7 +464,7 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    const admin = await this.usersCollection.findOne({ id: adminId, role: 'org_admin' });
+    const admin = await this.usersCollection.findOne({ id: adminId, role: this.createRoleQuery('admin') });
     if (!admin) {
       throw new Error('Admin not found');
     }
@@ -408,7 +498,7 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    const admin = await this.usersCollection.findOne({ id: adminId, role: 'org_admin' });
+    const admin = await this.usersCollection.findOne({ id: adminId, role: this.createRoleQuery('admin') });
     if (!admin) {
       throw new Error('Admin not found');
     }
@@ -480,14 +570,15 @@ export class AuthService {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(joinData.password, saltRounds);
 
-    // Create new admin user in the same organization
+    // Create new user in the same organization based on invite role
     const userId = this.generateUserId();
     const user: User = {
       id: userId,
       orgId: admin.orgId,
-      role: 'org_admin',
+      role: invite.role as 'admin' | 'client',
       email: joinData.email,
       passwordHash,
+      isPublic: (admin as any).isPublic || true,
       createdAt: new Date(),
       updatedAt: new Date()
     } as any;
@@ -496,7 +587,8 @@ export class AuthService {
     (user as any).organizations = [{
       orgId: admin.orgId,
       orgName: admin.orgName || `Organization ${admin.orgId}`,
-      role: 'org_admin',
+      isPublic: (admin as any).isPublic || true,
+      role: this.createRoleQuery('admin'),
       joinedAt: new Date()
     }];
 
@@ -519,21 +611,25 @@ export class AuthService {
       updatedOrganizations.push({
         orgId: admin.orgId!,
         orgName: admin.orgName || `Organization ${admin.orgId}`,
-        role: 'org_admin' as const,
+        role: 'admin' as const,
         joinedAt: admin.createdAt || new Date()
       });
     }
 
+    // Only increment admin count for admin invites
+    const updateData: any = {
+      pendingInvites: updatedInvites,
+      organizations: updatedOrganizations,
+      updatedAt: new Date()
+    };
+
+    if (invite.role === this.createRoleQuery('admin')) {
+      updateData.adminCount = (admin.adminCount || 1) + 1;
+    }
+
     await this.usersCollection.updateOne(
       { id: admin.id },
-      { 
-        $set: { 
-          pendingInvites: updatedInvites,
-          organizations: updatedOrganizations,
-          adminCount: (admin.adminCount || 1) + 1,
-          updatedAt: new Date()
-        }
-      }
+      { $set: updateData }
     );
 
     // Generate JWT token
@@ -551,8 +647,11 @@ export class AuthService {
         orgId: user.orgId,
         role: user.role,
         email: user.email,
-        orgName: admin.orgName
-      }
+        orgName: admin.orgName || `Organization ${admin.orgId}`,
+        orgDescription: (admin as any).orgDescription || '',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      } as any
     };
   }
 
@@ -562,14 +661,15 @@ export class AuthService {
     }
 
     // First, try to find a user with this orgId as their current org
-    const admin = await this.usersCollection.findOne({ orgId, role: 'org_admin' });
+    const admin = await this.usersCollection.findOne({ orgId, role: this.createRoleQuery('admin') });
     if (admin) {
-      const adminCount = await this.usersCollection.countDocuments({ orgId, role: 'org_admin' });
+      const adminCount = await this.usersCollection.countDocuments({ orgId, role: this.createRoleQuery('admin') });
 
       return {
         id: orgId,
         name: admin.orgName || orgId,
         description: admin.orgDescription || '',
+        isPublic: (admin as any).isPublic || true,
         createdAt: admin.createdAt,
         adminCount,
         inviteCode: admin.inviteCode || ''
@@ -579,7 +679,7 @@ export class AuthService {
     // If no user found with this orgId, look for users who have this org in their organizations array
     const userWithOrg = await this.usersCollection.findOne({ 
       'organizations.orgId': orgId,
-      role: 'org_admin'
+      role: this.createRoleQuery('admin')
     });
 
     if (userWithOrg) {
@@ -588,13 +688,14 @@ export class AuthService {
         // Count how many users have this organization in their organizations array
         const adminCount = await this.usersCollection.countDocuments({ 
           'organizations.orgId': orgId,
-          role: 'org_admin'
+          role: this.createRoleQuery('admin')
         });
 
         return {
           id: orgId,
           name: orgMembership.orgName || orgId,
           description: orgMembership.orgDescription || 'No description available',
+          isPublic: (orgMembership as any).isPublic || true,
           createdAt: orgMembership.joinedAt || new Date(),
           adminCount,
           inviteCode: ''
@@ -612,7 +713,7 @@ export class AuthService {
 
     const admin = await this.usersCollection.findOne({ 
       orgId, 
-      role: 'org_admin' 
+      role: this.createRoleQuery('admin') 
     });
 
     return admin?.orgName || null;
@@ -625,7 +726,7 @@ export class AuthService {
 
     // Update direct orgId matches
     const result1 = await this.usersCollection.updateMany(
-      { orgId, role: 'org_admin' },
+      { orgId, role: this.createRoleQuery('admin') },
       { 
         $set: { 
           orgDescription,
@@ -638,7 +739,7 @@ export class AuthService {
     const result2 = await this.usersCollection.updateMany(
       { 
         'organizations.orgId': orgId,
-        role: 'org_admin'
+        role: this.createRoleQuery('admin')
       },
       { 
         $set: { 
@@ -734,6 +835,566 @@ export class AuthService {
         orgDescription: updatedUser.orgDescription,
         organizations: (updatedUser as any).organizations
       }
+    };
+  }
+
+  // Update organization visibility (public/private)
+  async updateOrganizationVisibility(orgId: string, isPublic: boolean): Promise<void> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Update direct orgId matches
+    const result1 = await this.usersCollection.updateMany(
+      { orgId, role: this.createRoleQuery('admin') },
+      { 
+        $set: { 
+          isPublic,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Update organizations array matches
+    const result2 = await this.usersCollection.updateMany(
+      { 
+        'organizations.orgId': orgId,
+        role: this.createRoleQuery('admin')
+      },
+      { 
+        $set: { 
+          'organizations.$.isPublic': isPublic,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result1.matchedCount === 0 && result2.matchedCount === 0) {
+      throw new Error('Organization not found');
+    }
+  }
+
+  // Register a new client with email and password
+  async registerClient(email: string, password: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Check if email already exists (any role)
+    const existingUser = await this.usersCollection.findOne({ 
+      email: email.trim()
+    });
+
+    if (existingUser) {
+      throw new Error('Email already exists');
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Create new client user
+    const userId = this.generateUserId();
+    const user: User = {
+      id: userId,
+      orgId: '', // No organization initially
+      role: 'client',
+      email: email.trim(),
+      passwordHash: passwordHash,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as any;
+
+    try {
+      await this.usersCollection.insertOne(user);
+    } catch (error: any) {
+      // Handle MongoDB duplicate key error
+      if (error.code === 11000) {
+        throw new Error('Email already exists');
+      }
+      throw error;
+    }
+
+    // Generate JWT token
+    const token = this.generateToken({
+      userId: user.id,
+      orgId: user.orgId,
+      role: user.role
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        orgId: user.orgId,
+        role: user.role,
+        email: user.email,
+        orgName: 'No Organization',
+        orgDescription: 'You can join an organization after logging in',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      } as any
+    };
+  }
+
+  // Login client with email and password
+  async loginClient(email: string, password: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find client by email
+    const client = await this.usersCollection.findOne({ 
+      email: email.trim(),
+      role: 'client'
+    });
+
+    if (!client) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, (client as any).passwordHash);
+    if (!isValidPassword) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Generate JWT token
+    const token = this.generateToken({
+      userId: client.id,
+      orgId: client.orgId,
+      role: client.role
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: client.id,
+        orgId: client.orgId,
+        role: client.role,
+        email: client.email,
+        orgName: client.orgId ? 'Organization' : 'No Organization',
+        orgDescription: client.orgId ? 'Organization member' : 'You can join an organization after logging in',
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt
+      } as any
+    };
+  }
+
+  // Multi-role login: Authenticate user and return all accessible organizations
+  async loginMultiRole(email: string, password: string, preferredOrgId?: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find user by email (any role)
+    const user = await this.usersCollection.findOne({ 
+      email: email.trim()
+    });
+
+    if (!user) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, (user as any).passwordHash);
+    if (!isValidPassword) {
+      throw new Error('Invalid email or password');
+    }
+
+    // Migrate user to new format if needed
+    const migratedUser = await this.migrateUserToMultiRole(user);
+
+    // Determine which organization to start with
+    let currentOrgId = preferredOrgId;
+    if (!currentOrgId) {
+      // Use user's current org or first available org
+      currentOrgId = migratedUser.currentOrgId || Object.keys(migratedUser.organizationAccess || {})[0];
+    }
+
+    if (!currentOrgId) {
+      throw new Error('No organization access found');
+    }
+
+    // Verify user has access to the requested organization
+    if (!migratedUser.organizationAccess?.[currentOrgId]) {
+      throw new Error('Access denied to requested organization');
+    }
+
+    // Get organization details
+    const organization = await this.getOrganization(currentOrgId);
+    const currentRole = migratedUser.organizationAccess?.[currentOrgId]?.role || 'guest';
+
+    // Build accessible organizations info
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+    
+    if (migratedUser.organizationAccess) {
+      for (const [orgId, access] of Object.entries(migratedUser.organizationAccess)) {
+        const org = await this.getOrganization(orgId);
+        if (org) {
+          accessibleOrgs[orgId] = {
+            role: access.role,
+            orgName: org.name,
+            orgDescription: org.description,
+            isPublic: org.isPublic
+          };
+        }
+      }
+    }
+
+    // Generate multi-role token
+    const token = this.generateMultiRoleToken(migratedUser, currentOrgId);
+
+    const result = {
+      token,
+      user: {
+        id: migratedUser.id,
+        orgId: currentOrgId, // Required for backward compatibility
+        role: currentRole as any, // Using new standardized role names
+        email: migratedUser.email,
+        orgName: organization?.name || 'Unknown Organization',
+        currentOrgId: currentOrgId,
+        currentRole: currentRole,
+        accessibleOrgs: accessibleOrgs
+      }
+    };
+
+    console.log('🔄 Login result for user:', {
+      userId: migratedUser.id,
+      email: migratedUser.email,
+      currentOrgId,
+      currentRole,
+      accessibleOrgsCount: Object.keys(accessibleOrgs).length,
+      accessibleOrgs: accessibleOrgs
+    });
+
+    return result;
+  }
+
+  // Switch to a different organization (multi-role)
+  async switchOrganizationMultiRole(userId: string, newOrgId: string): Promise<SwitchOrganizationResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find user
+    const user = await this.usersCollection.findOne({ id: userId });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    console.log('🔄 switchOrganizationMultiRole - user before migration:', {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      orgId: user.orgId,
+      hasOrganizationAccess: !!user.organizationAccess,
+      organizationAccessKeys: user.organizationAccess ? Object.keys(user.organizationAccess) : []
+    });
+
+    // Migrate user to new format if needed
+    const migratedUser = await this.migrateUserToMultiRole(user);
+    
+    console.log('🔄 switchOrganizationMultiRole - user after migration:', {
+      id: migratedUser.id,
+      hasOrganizationAccess: !!migratedUser.organizationAccess,
+      organizationAccessKeys: migratedUser.organizationAccess ? Object.keys(migratedUser.organizationAccess) : [],
+      organizationAccess: migratedUser.organizationAccess
+    });
+
+    // Verify user has access to the new organization
+    if (!migratedUser.organizationAccess?.[newOrgId]) {
+      throw new Error('Access denied to requested organization');
+    }
+
+    // Get organization details
+    const organization = await this.getOrganization(newOrgId);
+    const newRole = migratedUser.organizationAccess![newOrgId].role;
+
+    // Build accessible organizations info
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+    
+    if (migratedUser.organizationAccess) {
+      for (const [orgId, access] of Object.entries(migratedUser.organizationAccess)) {
+        const org = await this.getOrganization(orgId);
+        if (org) {
+          accessibleOrgs[orgId] = {
+            role: access.role,
+            orgName: org.name,
+            orgDescription: org.description,
+            isPublic: org.isPublic
+          };
+        }
+      }
+    }
+
+    // Update user's current organization
+    await this.usersCollection.updateOne(
+      { id: userId },
+      { 
+        $set: { 
+          currentOrgId: newOrgId,
+          currentRole: newRole,
+          updatedAt: new Date()
+        } 
+      }
+    );
+
+    // Generate new token with updated organization
+    const token = this.generateMultiRoleToken(migratedUser, newOrgId);
+
+    const result = {
+      token,
+      user: {
+        id: migratedUser.id,
+        orgId: newOrgId, // Required for backward compatibility
+        role: newRole as any, // Using new standardized role names
+        email: migratedUser.email,
+        orgName: organization?.name || 'Unknown Organization',
+        orgDescription: organization?.description,
+        currentOrgId: newOrgId,
+        currentRole: newRole,
+        accessibleOrgs: accessibleOrgs
+      }
+    };
+
+    return result;
+  }
+
+  // Join a client with an invite code using email and password
+  async joinClientWithInvite(email: string, password: string, inviteCode: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Check if email already exists
+    const existingClient = await this.usersCollection.findOne({ 
+      email: email.trim(),
+      role: 'client'
+    });
+
+    if (existingClient) {
+      throw new Error('Email already exists');
+    }
+
+    // Find admin with matching invite code
+    const admin = await this.usersCollection.findOne({ 
+      'pendingInvites': { $exists: true },
+      [`pendingInvites.${inviteCode}`]: { $exists: true }
+    });
+
+    if (!admin || !admin.pendingInvites || !admin.pendingInvites[inviteCode]) {
+      throw new Error('Invalid or expired invite code');
+    }
+
+    const invite = admin.pendingInvites[inviteCode];
+    if (invite.expiresAt < new Date()) {
+      throw new Error('Invite code has expired');
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Create new client user
+    const userId = this.generateUserId();
+    const user: User = {
+      id: userId,
+      orgId: admin.orgId,
+      role: 'client',
+      email: email.trim(),
+      passwordHash: passwordHash,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as any;
+
+    await this.usersCollection.insertOne(user);
+
+    // Remove the used invite
+    const updatedInvites = { ...admin.pendingInvites };
+    delete updatedInvites[inviteCode];
+
+    await this.usersCollection.updateOne(
+      { id: admin.id },
+      { $set: { pendingInvites: updatedInvites } }
+    );
+
+    // Generate JWT token
+    const token = this.generateToken({
+      userId: user.id,
+      orgId: user.orgId,
+      role: user.role
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        orgId: user.orgId,
+        role: user.role,
+        email: user.email,
+        orgName: admin.orgName || `Organization ${admin.orgId}`,
+        orgDescription: (admin as any).orgDescription || '',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      } as any
+    };
+  }
+
+  // Create a guest user with limited access
+  async createGuest(orgId?: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // If orgId provided, verify organization exists and is public
+    let organization: Organization | null = null;
+    if (orgId) {
+      organization = await this.getOrganization(orgId);
+      if (!organization) {
+        throw new Error('Organization not found');
+      }
+      if (!organization.isPublic) {
+        throw new Error('Organization is private and requires invitation');
+      }
+    }
+
+    // Create guest user
+    const userId = this.generateUserId();
+    const guestExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    const user: User = {
+      id: userId,
+      orgId: orgId || '',
+      role: 'guest',
+      email: `guest_${userId}@temp.local`, // Generate unique email for guests
+      isGuest: true,
+      guestExpiresAt,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as any;
+
+    await this.usersCollection.insertOne(user);
+
+    // Generate JWT token with guest role
+    const token = this.generateToken({
+      userId: user.id,
+      orgId: user.orgId,
+      role: user.role
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        orgId: user.orgId,
+        role: user.role,
+        email: user.email,
+        orgName: organization?.name || 'No Organization',
+        orgDescription: organization?.description || 'Guest access - limited functionality',
+        isGuest: true,
+        guestExpiresAt,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      } as any
+    };
+  }
+
+  // Clean up expired guest users
+  async cleanupExpiredGuests(): Promise<void> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const result = await this.usersCollection.deleteMany({
+      role: 'guest',
+      guestExpiresAt: { $lt: new Date() }
+    });
+
+    console.log(`Cleaned up ${result.deletedCount} expired guest users`);
+  }
+
+  // Clean up guest user on logout
+  async cleanupGuestOnLogout(userId: string): Promise<void> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Only delete if user is actually a guest
+    const user = await this.usersCollection.findOne({ id: userId });
+    if (user && user.role === 'guest') {
+      await this.usersCollection.deleteOne({ id: userId });
+      console.log(`🗑️ Cleaned up guest user ${userId} on logout`);
+    }
+  }
+
+  // Join client to organization
+  async joinClientToOrganization(userId: string, orgId: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find the user (all guests now have database records)
+    const user = await this.usersCollection.findOne({ id: userId });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify the organization exists and is public
+    const organization = await this.getOrganization(orgId);
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    if (!organization.isPublic) {
+      throw new Error('Organization is private and requires invitation');
+    }
+
+
+    // Update user's organization and role (guests become clients when joining)
+    const setData: any = {
+      orgId: orgId,
+      orgName: organization.name,
+      orgDescription: organization.description,
+      updatedAt: new Date()
+    };
+
+    const updateQuery: any = { $set: setData };
+
+    // Guests remain guests even after joining an organization
+    // They get org access but stay temporary
+
+    const updatedUser = await this.usersCollection.findOneAndUpdate(
+      { id: userId },
+      updateQuery,
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedUser) {
+      throw new Error('Failed to update user organization');
+    }
+
+    // Generate new JWT token with updated organization
+    const token = this.generateToken({
+      userId: updatedUser.id,
+      orgId: updatedUser.orgId,
+      role: updatedUser.role
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: updatedUser.id,
+        orgId: updatedUser.orgId,
+        currentOrgId: updatedUser.orgId, // Add currentOrgId for frontend compatibility
+        role: updatedUser.role,
+        currentRole: updatedUser.role, // Add currentRole for consistency
+        email: updatedUser.email,
+        orgName: updatedUser.orgName || organization.name,
+        orgDescription: updatedUser.orgDescription || organization.description,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt
+      } as any
     };
   }
 

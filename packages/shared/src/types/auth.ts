@@ -1,16 +1,33 @@
 export interface User {
   id: string;
   orgId: string; // Current active organization
-  role: 'org_admin' | 'client';
-  email: string; // Required but can be empty string for clients
+  role: 'admin' | 'client' | 'guest';
+  email: string; // Required for admins and clients, can be empty for guests
   phone?: string; // Only for clients
-  passwordHash?: string; // Only for admins
+  passwordHash?: string; // Password hash for admins and registered clients
   orgName?: string; // Current organization name
   orgDescription?: string; // Current organization description
+  isPublic?: boolean; // Organization visibility (public/private)
   organizations?: OrganizationMembership[]; // All organizations user belongs to (for admins)
   inviteCode?: string; // Organization invite code
   pendingInvites?: { [inviteCode: string]: { email: string; role: string; expiresAt: Date; createdAt: Date } };
   adminCount?: number; // Number of admins in organization
+  isGuest?: boolean; // Flag to identify guest users
+  guestExpiresAt?: Date; // When guest session expires
+  
+  // NEW: Multi-role organization access (optional for backward compatibility)
+  organizationAccess?: {
+    [orgId: string]: {
+      role: 'admin' | 'client' | 'guest';
+      joinedAt: Date;
+      permissions?: string[];
+    }
+  };
+  
+  // NEW: Current active organization context (optional for backward compatibility)
+  currentOrgId?: string;
+  currentRole?: 'admin' | 'client' | 'guest';
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,8 +35,10 @@ export interface User {
 export interface OrganizationMembership {
   orgId: string;
   orgName: string;
-  role: 'org_admin' | 'client';
+  role: 'admin' | 'client' | 'guest';
   joinedAt: Date;
+  orgDescription?: string; // Organization description
+  isPublic?: boolean; // Organization visibility
 }
 
 // Admin authentication
@@ -48,27 +67,55 @@ export interface ClientTokenRequest {
   orgId: string;
 }
 
+export interface ClientRegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface GuestAuthRequest {
+  orgId?: string; // Optional organization to join as guest
+}
+
 export interface AuthResponse {
   token: string;
   user: {
     id: string;
     orgId: string;
-    role: 'org_admin' | 'client';
+    role: 'admin' | 'client' | 'guest';
     email?: string;
     phone?: string;
     orgName?: string;
     organizations?: OrganizationMembership[];
+    
+    // NEW: Multi-role organization access (optional for backward compatibility)
+    currentOrgId?: string;
+    currentRole?: 'admin' | 'client' | 'guest';
+    accessibleOrgs?: {
+      [orgId: string]: {
+        role: 'admin' | 'client' | 'guest';
+        orgName: string;
+        orgDescription?: string;
+        isPublic?: boolean;
+      };
+    };
   };
 }
 
 export interface JWTPayload {
   userId: string;
   orgId: string;
-  role: 'org_admin' | 'client';
+  role: 'admin' | 'client' | 'guest';
   email?: string;
   phone?: string;
   iat: number;
   exp: number;
+  
+  // NEW: Multi-role organization access (optional for backward compatibility)
+  currentOrgId?: string;
+  currentRole?: 'admin' | 'client' | 'guest';
+  accessibleOrgs?: {
+    [orgId: string]: 'admin' | 'client' | 'guest';
+  };
 }
 
 export interface AuthenticatedRequest {
@@ -80,6 +127,7 @@ export interface Organization {
   id: string;
   name: string;
   description?: string;
+  isPublic?: boolean;
   createdAt: Date;
   adminCount: number;
   inviteCode: string;
@@ -87,7 +135,7 @@ export interface Organization {
 
 export interface CreateInviteRequest {
   email: string;
-  role: 'org_admin';
+  role: 'admin' | 'client';
 }
 
 export interface InviteResponse {
@@ -114,11 +162,23 @@ export interface SwitchOrganizationResponse {
   user: {
     id: string;
     orgId: string;
-    role: 'org_admin' | 'client';
+    role: 'admin' | 'client' | 'guest';
     email?: string;
     phone?: string;
     orgName?: string;
     orgDescription?: string;
     organizations?: OrganizationMembership[];
+    
+    // NEW: Multi-role organization access (optional for backward compatibility)
+    currentOrgId?: string;
+    currentRole?: 'admin' | 'client' | 'guest';
+    accessibleOrgs?: {
+      [orgId: string]: {
+        role: 'admin' | 'client' | 'guest';
+        orgName: string;
+        orgDescription?: string;
+        isPublic?: boolean;
+      };
+    };
   };
 }

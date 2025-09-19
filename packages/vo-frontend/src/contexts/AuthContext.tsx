@@ -5,11 +5,15 @@ import { API_BASE_URL } from '../config/api';
 
 interface User {
   id: string;
-  orgId: string;
-  role: 'org_admin' | 'client';
+  orgId: string; // Legacy field for backward compatibility
+  role: 'org_admin' | 'client' | 'guest'; // Legacy field for backward compatibility
   email?: string;
   phone?: string;
   orgName?: string;
+  // New multi-role fields
+  currentOrgId?: string;
+  currentRole?: 'admin' | 'client' | 'guest';
+  accessibleOrgs?: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } };
 }
 
 interface AuthContextType {
@@ -21,6 +25,10 @@ interface AuthContextType {
   updateUser: (token: string, user: User) => Promise<void>;
   isAdmin: boolean;
   isClient: boolean;
+  // Multi-role methods
+  loginMultiRole: (email: string, password: string, preferredOrgId?: string) => Promise<void>;
+  switchOrganization: (orgId: string) => Promise<void>;
+  getAccessibleOrganizations: () => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,6 +91,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
+      // Call backend logout endpoint to clean up guest records
+      if (token) {
+        try {
+          await axios.post(`${API_BASE_URL}/api/auth/logout`, {}, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
+          console.log('🗑️ Backend logout completed');
+        } catch (error) {
+          console.error('Backend logout error (continuing anyway):', error);
+          // Continue with frontend cleanup even if backend logout fails
+        }
+      }
+
+      // Clear frontend storage
       await AsyncStorage.removeItem('auth_token');
       await AsyncStorage.removeItem('auth_user');
       
@@ -91,6 +116,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Remove axios authorization header
       delete axios.defaults.headers.common['Authorization'];
+      
+      console.log('✅ Frontend logout completed');
     } catch (error) {
       console.error('Error clearing auth data:', error);
     }
@@ -111,8 +138,64 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const isAdmin = user?.role === 'org_admin';
-  const isClient = user?.role === 'client';
+  // Multi-role login
+  const loginMultiRole = useCallback(async (email: string, password: string, preferredOrgId?: string) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/multi-role/login`, {
+        email,
+        password,
+        preferredOrgId
+      });
+
+      const { token: newToken, user: newUser } = response.data;
+      await login(newToken, newUser);
+    } catch (error: any) {
+      console.error('Multi-role login error:', error);
+      throw error;
+    }
+  }, [login]);
+
+  // Switch organization
+  const switchOrganization = useCallback(async (orgId: string) => {
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/multi-role/switch-organization`, {
+        orgId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const { token: newToken, user: newUser } = response.data;
+      await updateUser(newToken, newUser);
+    } catch (error: any) {
+      console.error('Switch organization error:', error);
+      throw error;
+    }
+  }, [token, updateUser]);
+
+  // Get accessible organizations
+  const getAccessibleOrganizations = useCallback(async () => {
+    if (!token) {
+      throw new Error('No authentication token');
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/auth/multi-role/organizations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Get organizations error:', error);
+      throw error;
+    }
+  }, [token]);
+
+  // Role checking with multi-role support
+  const isAdmin = user?.currentRole === 'admin' || user?.role === 'org_admin';
+  const isClient = user?.currentRole === 'client' || user?.currentRole === 'guest' || user?.role === 'client' || user?.role === 'guest';
 
   const value: AuthContextType = {
     user,
@@ -123,6 +206,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     updateUser,
     isAdmin,
     isClient,
+    loginMultiRole,
+    switchOrganization,
+    getAccessibleOrganizations,
   };
 
   return (

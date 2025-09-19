@@ -10,12 +10,12 @@ interface HeaderProps {
   } | null;
   isAdmin: boolean;
   isClient: boolean;
-  currentTab: 'chat' | 'documents' | 'invites' | 'profile';
-  clientCurrentTab: 'chat' | 'profile';
+  currentTab: 'search' | 'chat' | 'documents' | 'organizations';
+  clientCurrentTab: 'search' | 'chat' | 'organizations';
   documentStats: { count: number };
   onLogout: () => void;
-  onTabChange: (tab: 'chat' | 'documents' | 'invites' | 'profile') => void;
-  onClientTabChange: (tab: 'chat' | 'profile') => void;
+  onTabChange: (tab: 'search' | 'chat' | 'documents' | 'organizations') => void;
+  onClientTabChange: (tab: 'search' | 'chat' | 'organizations') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -62,6 +62,21 @@ export const Header: React.FC<HeaderProps> = ({
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: 16,
+            backgroundColor: (isAdmin ? currentTab === 'search' : clientCurrentTab === 'search') ? 'rgba(255,255,255,0.2)' : 'transparent',
+            marginRight: 8,
+          }}
+          onPress={() => isAdmin ? onTabChange('search') : onClientTabChange('search')}
+        >
+          <Text style={{ color: 'white', fontWeight: (isAdmin ? currentTab === 'search' : clientCurrentTab === 'search') ? 'bold' : 'normal' }}>
+            Search
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 16,
             backgroundColor: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'rgba(255,255,255,0.2)' : 'transparent',
             marginRight: 8,
           }}
@@ -91,22 +106,6 @@ export const Header: React.FC<HeaderProps> = ({
         )}
         
         {/* Only show Invites tab for admins */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 16,
-              backgroundColor: currentTab === 'invites' ? 'rgba(255,255,255,0.2)' : 'transparent',
-              marginRight: 8,
-            }}
-            onPress={() => onTabChange('invites')}
-          >
-            <Text style={{ color: 'white', fontWeight: currentTab === 'invites' ? 'bold' : 'normal' }}>
-              Invites
-            </Text>
-          </TouchableOpacity>
-        )}
         
         {/* Admin Profile tab */}
         {isAdmin && (
@@ -115,14 +114,14 @@ export const Header: React.FC<HeaderProps> = ({
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 16,
-              backgroundColor: currentTab === 'profile' ? 'rgba(255,255,255,0.2)' : 'transparent',
-              marginRight: 8,
-            }}
-            onPress={() => onTabChange('profile')}
-          >
-            <Text style={{ color: 'white', fontWeight: currentTab === 'profile' ? 'bold' : 'normal' }}>
-              Profile
-            </Text>
+            backgroundColor: currentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
+            marginRight: 8,
+          }}
+          onPress={() => onTabChange('organizations')}
+        >
+          <Text style={{ color: 'white', fontWeight: currentTab === 'organizations' ? 'bold' : 'normal' }}>
+            Organizations
+          </Text>
           </TouchableOpacity>
         )}
         
@@ -133,12 +132,12 @@ export const Header: React.FC<HeaderProps> = ({
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 16,
-              backgroundColor: clientCurrentTab === 'profile' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              backgroundColor: clientCurrentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
             }}
-            onPress={() => onClientTabChange('profile')}
+            onPress={() => onClientTabChange('organizations')}
           >
-            <Text style={{ color: 'white', fontWeight: clientCurrentTab === 'profile' ? 'bold' : 'normal' }}>
-              Profile
+            <Text style={{ color: 'white', fontWeight: clientCurrentTab === 'organizations' ? 'bold' : 'normal' }}>
+              Organizations
             </Text>
           </TouchableOpacity>
         )}

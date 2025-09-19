@@ -13,6 +13,8 @@ export type {
   AdminRegisterRequest,
   ClientAuthRequest,
   ClientTokenRequest,
+  ClientRegisterRequest,
+  GuestAuthRequest,
   AuthResponse,
   JWTPayload,
   AuthenticatedRequest,

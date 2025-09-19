@@ -10,7 +10,19 @@ async function clearDatabase() {
   try {
     console.log('🔌 Connecting to MongoDB...');
     console.log('📍 Using MongoDB URI:', MONGODB_URI.substring(0, 20) + '...');
-    client = new MongoClient(MONGODB_URI);
+    // MongoDB connection options with SSL/TLS configuration
+    const options = {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
+      retryWrites: true,
+      writeConcern: { w: 'majority' },
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    };
+
+    client = new MongoClient(MONGODB_URI, options);
     await client.connect();
     
     const db = client.db('farsight');

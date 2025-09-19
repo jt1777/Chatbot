@@ -3,10 +3,10 @@ import { useDocumentManagement } from './useDocumentManagement';
 import { useChat } from './useChat';
 import { useOrganization } from './useOrganization';
 
-export const useAppState = (token: string | null, userId: string | undefined, isAdmin: boolean, isClient: boolean) => {
+export const useAppState = (token: string | null, userId: string | undefined, isAdmin: boolean, isClient: boolean, userRole?: string) => {
   // Tab management
-  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'invites' | 'profile'>('chat');
-  const [clientCurrentTab, setClientCurrentTab] = useState<'chat' | 'profile'>('chat');
+  const [currentTab, setCurrentTab] = useState<'search' | 'chat' | 'documents' | 'organizations'>('search');
+  const [clientCurrentTab, setClientCurrentTab] = useState<'search' | 'chat' | 'organizations'>('search');
 
   // Custom hooks
   const documentManagement = useDocumentManagement(token);
@@ -15,23 +15,26 @@ export const useAppState = (token: string | null, userId: string | undefined, is
 
   // Load data when switching tabs
   useEffect(() => {
-    if (currentTab === 'documents') {
+    if (currentTab === 'documents' && userRole !== 'guest') {
       documentManagement.loadDocumentStats();
       documentManagement.loadRagConfig();
-    } else if (currentTab === 'invites') {
-      organization.loadActiveInvites();
-    } else if (currentTab === 'profile') {
+    } else if (currentTab === 'organizations') {
       organization.loadOrganizationInfo();
       organization.loadUserOrganizations();
+      organization.loadActiveInvites(); // Load invites in organizations tab now
     }
-  }, [currentTab]);
+  }, [currentTab, userRole]);
 
   // Load client organization info when switching to client profile
   useEffect(() => {
-    if (clientCurrentTab === 'profile') {
+    console.log('useAppState useEffect - clientCurrentTab:', clientCurrentTab, 'isClient:', isClient, 'userRole:', userRole);
+    if (clientCurrentTab === 'organizations' && isClient) {
+      console.log('Loading client organization info...');
       organization.loadClientOrganizationInfo();
+    } else {
+      console.log('Skipping client organization info load - not on organizations tab or not a client');
     }
-  }, [clientCurrentTab]);
+  }, [clientCurrentTab, isClient, userRole]);
 
   // Use refs to store the reset functions to avoid dependency issues
   const resetFunctionsRef = useRef({
