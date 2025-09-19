@@ -43,8 +43,17 @@ export const useChat = (token: string | null, userId: string | undefined) => {
         }
       });
 
+      // Check if this is a "no relevant documents" response in strict mode
+      const responseText = response.data.reply || response.data.message;
+      const isNoResponseFromTrainingData = strictMode && 
+        responseText && 
+        (responseText.includes("don't have information about that in my knowledge base") ||
+         responseText.includes("don't have enough information in my knowledge base"));
+
       const botMessage: Message = {
-        text: response.data.reply,
+        text: isNoResponseFromTrainingData 
+          ? "There is no appropriate reply to your message based on the training data. Please try again, add documents to the knowledge base, or switch to General mode (if available) to utilize my pre-training data to respond to your message."
+          : responseText,
         from: 'bot',
         timestamp: new Date(),
         sources: response.data.sources,

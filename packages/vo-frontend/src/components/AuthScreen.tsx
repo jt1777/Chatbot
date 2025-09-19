@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import { API_BASE_URL } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -173,19 +174,25 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     const isGuest = userData?.currentRole === 'guest' || userData?.role === 'guest';
 
     return (
-      <ScrollView style={{ flex: 1, padding: 16, backgroundColor: '#F9FAFB' }}>
+      <LinearGradient
+        colors={['#1E3A8A', '#581C87']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={{ flex: 1, padding: 16 }}>
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 8 }}>
             Welcome back!
           </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', marginBottom: 24 }}>
+          <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 24 }}>
             {userData?.email}
           </Text>
         </View>
 
         {/* Search Organizations */}
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 12 }}>
             Search Organizations
           </Text>
           <TextInput
@@ -210,7 +217,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {searchQuery.trim() && (
             <View style={{ marginTop: 12 }}>
               {isSearching ? (
-                <Text style={{ textAlign: 'center', color: '#6B7280', padding: 16 }}>
+                <Text style={{ textAlign: 'center', color: 'rgba(255, 255, 255, 0.8)', padding: 16 }}>
                   Searching...
                 </Text>
               ) : searchResults.length > 0 ? (
@@ -227,16 +234,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     }}
                     onPress={() => handleJoinOrganization(org.orgId)}
                   >
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 4 }}>
                       {org.name}
                     </Text>
-                    <Text style={{ fontSize: 14, color: '#6B7280' }}>
+                    <Text style={{ fontSize: 14, color: '#4B5563' }}>
                       {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
                     </Text>
                   </TouchableOpacity>
                 ))
               ) : (
-                <Text style={{ textAlign: 'center', color: '#6B7280', padding: 16 }}>
+                <Text style={{ textAlign: 'center', color: 'rgba(255, 255, 255, 0.8)', padding: 16 }}>
                   No organizations found
                 </Text>
               )}
@@ -247,7 +254,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         {/* My Organizations */}
         {!isGuest && userOrgs.length > 0 && (
           <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 12 }}>
               My Organizations
             </Text>
             {userOrgs.map((org) => (
@@ -265,10 +272,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 4 }}>
                       {org.name}
                     </Text>
-                    <Text style={{ fontSize: 14, color: '#6B7280' }}>
+                    <Text style={{ fontSize: 14, color: '#4B5563' }}>
                       {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
                     </Text>
                   </View>
@@ -318,12 +325,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             }}
             onPress={() => setClientMode('invitation')}
           >
-            <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+            <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '600' }}>
               Join with Invite Code
             </Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </LinearGradient>
     );
   };
 
@@ -611,43 +619,49 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: 'white' }}>
-      <View style={{ padding: 20 }}>
+    <LinearGradient
+      colors={['#1E3A8A', '#581C87']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <ScrollView style={{ flex: 1 }}>
+        <View style={{ padding: 20 }}>
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 30 }}>
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-            Ask Akasha
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 16 }}>
+            ASK AKASHA
           </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>
-            Cloud Version 0.1
+          <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', marginBottom: 16 }}>
+            Mobile Version 0.1
           </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', marginBottom: 8 }}>
           Build a specialized knowledge base.
           </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', marginBottom: 8 }}>
           Analyze using state of the art AI.  
           </Text>
-          <Text style={{ fontSize: 16, color: '#6B7280', textAlign: 'center' }}>
+          <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center' }}>
           Share with friends and colleagues.  
           </Text>
         </View>
 
         {/* Single Login Form */}
         <View style={{ marginBottom: 30 }}>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 16 }}>
             {clientMode === 'invitation' ? 'Join with Invite Code' :
              isRegistering ? 'Create Account' :
              'Sign In'}
           </Text>
-          <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
-            {clientMode === 'invitation' ? 'Join a private organization using an invite code.' :
+          <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 20 }}>
+            {clientMode === 'invitation' ? 'Join an organization using an invite code.' :
              isRegistering ? 'Create a new account to get started.' :
              'Enter your email and password to access your organizations.'}
           </Text>
 
           {/* Email Input */}
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
               Email Address
             </Text>
             <TextInput
@@ -671,7 +685,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
           {/* Password Input */}
           <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
               Password
             </Text>
             <TextInput
@@ -695,7 +709,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Confirm Password Input - Only show in register mode */}
           {isRegistering && (
             <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                 Confirm Password
               </Text>
               <TextInput
@@ -720,7 +734,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {/* Invite Code Input - Only show in invitation mode */}
           {clientMode === 'invitation' && (
             <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                 Invite Code
               </Text>
               <TextInput
@@ -793,7 +807,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
           {/* Alternative Options - Always show 3 other options */}
           <View style={{ marginTop: 30, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
-            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 16 }}>
+            <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', marginBottom: 16 }}>
               Or choose a different option:
             </Text>
 
@@ -822,7 +836,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     setInviteCode('');
                   }}
                 >
-                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '600' }}>
                     Sign In Instead
                   </Text>
                 </TouchableOpacity>
@@ -869,7 +883,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     setInviteCode('');
                   }}
                 >
-                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '600' }}>
                     Create Account
                   </Text>
                 </TouchableOpacity>
@@ -920,7 +934,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     setInviteCode('');
                   }}
                 >
-                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                  <Text style={{ color: '#1F2937', fontSize: 16, fontWeight: '600' }}>
                     {isRegistering ? 'Sign In Instead' : 'Create Account'}
                   </Text>
                 </TouchableOpacity>
@@ -942,7 +956,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   }}
                 >
                   <Text style={{
-                    color: '#374151',
+                    color: '#1F2937',
                     fontSize: 16,
                     fontWeight: '600'
                   }}>
@@ -1043,13 +1057,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Client Guest Tab */}
             {clientMode === 'guest' && (
               <View>
-                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 20 }}>
                   Start chatting immediately as a guest. You can select an organization after logging in.
                 </Text>
 
                 {/* Guest User Display */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     User Type
                   </Text>
                   <TextInput
@@ -1061,7 +1075,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       paddingVertical: 12,
                       fontSize: 16,
                       backgroundColor: '#F9FAFB',
-                      color: '#6B7280',
+                      color: '#4B5563',
                     }}
                     value="Guest"
                     editable={false}
@@ -1092,13 +1106,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Client Register Tab */}
             {clientMode === 'register' && (
               <View>
-                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 20 }}>
                   Create a new account with email and password.
                 </Text>
 
                 {/* Email Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Email Address
                   </Text>
                   <TextInput
@@ -1121,7 +1135,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
                 {/* Password Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Password
                   </Text>
                   <TextInput
@@ -1143,7 +1157,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
                 {/* Confirm Password Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Confirm Password
                   </Text>
                   <TextInput
@@ -1192,13 +1206,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Client Invitation Tab */}
             {clientMode === 'invitation' && (
               <View>
-                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, color: '#4B5563', marginBottom: 20 }}>
                   Join a private organization using an invite code with email and password.
                 </Text>
 
                 {/* Email Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Email Address
                   </Text>
                   <TextInput
@@ -1221,7 +1235,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
                 {/* Password Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Password
                   </Text>
                   <TextInput
@@ -1243,7 +1257,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
                 {/* Confirm Password Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Confirm Password
                   </Text>
                   <TextInput
@@ -1270,7 +1284,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
                 {/* Invite Code Input */}
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                     Invite Code
                   </Text>
                   <TextInput
@@ -1315,10 +1329,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         {/* Legacy Admin Authentication - Hidden */}
         {false && authMode === 'admin' && (
           <View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 20 }}>
               Admin Access
             </Text>
-            <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
+            <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 20 }}>
               Sign in to manage documents and configure your organization's knowledge base.
             </Text>
 
@@ -1403,7 +1417,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
             {/* Email Input - Show for all tabs */}
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                 Email Address
               </Text>
               <TextInput
@@ -1426,7 +1440,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
             {/* Password Input - Show for all tabs */}
             <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                 Password (min 6 characters)
               </Text>
               <TextInput
@@ -1449,7 +1463,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Organization Name Input (Create Mode) */}
             {adminMode === 'create' && (
               <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                   Organization Name
                 </Text>
                 <TextInput
@@ -1472,7 +1486,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Invite Code Input (Join Mode) */}
             {adminMode === 'join' && (
               <View style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: 'white', marginBottom: 8 }}>
                   Invite Code
                 </Text>
                 <TextInput
@@ -1490,7 +1504,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   autoCapitalize="characters"
                   editable={!isProcessing}
                 />
-                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                <Text style={{ fontSize: 12, color: '#4B5563', marginTop: 4 }}>
                   Get this code from your organization admin
                 </Text>
               </View>
@@ -1562,14 +1576,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               )}
             </View>
 
-            <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 12 }}>
+            <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', textAlign: 'center', marginTop: 12 }}>
               {adminMode === 'login' && 'Sign in to an existing organization'}
               {adminMode === 'create' && 'Create a new organization with you as admin'}
               {adminMode === 'join' && 'Join an existing organization using an invite code'}
             </Text>
           </View>
         )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 }

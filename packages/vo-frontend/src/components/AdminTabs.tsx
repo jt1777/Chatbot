@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface User {
   email?: string;
@@ -69,9 +70,15 @@ export const AdminTabs: React.FC<AdminTabsProps> = ({
 
   if (currentTab === 'organizations') {
     return (
-      <ScrollView style={{ flex: 1, padding: 16 }}>
+      <LinearGradient
+        colors={['#1E3A8A', '#581C87']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={{ flex: 1, padding: 16 }}>
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 16 }}>
             Organization Profile
           </Text>
           
@@ -314,7 +321,8 @@ export const AdminTabs: React.FC<AdminTabsProps> = ({
           </View>
 
         </View>
-      </ScrollView>
+        </ScrollView>
+      </LinearGradient>
     );
   }
 

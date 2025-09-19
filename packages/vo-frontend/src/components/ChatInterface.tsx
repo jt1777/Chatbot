@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Message {
   text: string;
@@ -32,9 +33,22 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onToggleStrictMode,
 }) => {
   return (
-    <>
+    <LinearGradient
+      colors={['#1E3A8A', '#581C87']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={{ flex: 1 }}
+    >
       {/* Messages */}
-      <ScrollView style={{ flex: 1, padding: 16 }}>
+      <ScrollView style={{ 
+        flex: 1, 
+        padding: 16,
+        margin: 16,
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        borderRadius: 12,
+        backgroundColor: 'white'
+      }}>
         {messages.map((message, index) => (
           <View key={index}>
             <View
@@ -160,8 +174,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             paddingHorizontal: 16,
             paddingVertical: 8,
             marginRight: 8,
+            backgroundColor: 'white',
+            color: '#1F2937',
           }}
           placeholder="Type your message..."
+          placeholderTextColor="#9CA3AF"
           value={input}
           onChangeText={onInputChange}
           onSubmitEditing={onSendMessage}
@@ -182,6 +199,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-    </>
+    </LinearGradient>
   );
 };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface User {
   email?: string;
@@ -29,7 +30,13 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({
 
 
   return (
-    <ScrollView style={{ flex: 1, padding: 16 }}>
+    <LinearGradient
+      colors={['#1E3A8A', '#581C87']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <ScrollView style={{ flex: 1, padding: 16 }}>
 
       {/* Organization Information Section - Show if user has joined an organization */}
       {clientOrgInfo && (
@@ -75,6 +82,7 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({
         </View>
       )}
 
-    </ScrollView>
+      </ScrollView>
+    </LinearGradient>
   );
 };

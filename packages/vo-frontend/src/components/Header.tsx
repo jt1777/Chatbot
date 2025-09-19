@@ -43,21 +43,21 @@ export const Header: React.FC<HeaderProps> = ({
   // Combined logic for disabling tabs
   const shouldDisableTabs = shouldDisableTabsForGuest || shouldDisableTabsForClient;
   return (
-    <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
+    <View style={{ backgroundColor: '#1E3A8A', padding: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+        <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>
           Ask Akasha
         </Text>
         <TouchableOpacity
           onPress={onLogout}
           style={{
             backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 12,
-            paddingVertical: 6,
+            paddingHorizontal: 16,
+            paddingVertical: 8,
             borderRadius: 8,
           }}
         >
-          <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
+          <Text style={{ color: 'white', fontSize: 14, fontWeight: '600' }}>
             Logout
           </Text>
         </TouchableOpacity>

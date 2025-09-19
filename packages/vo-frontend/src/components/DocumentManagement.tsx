@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Document {
   source: string;
@@ -106,7 +107,13 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
   onSaveRagConfig,
 }) => {
   return (
-    <ScrollView style={{ flex: 1, padding: 16 }}>
+    <LinearGradient
+      colors={['#1E3A8A', '#581C87']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <ScrollView style={{ flex: 1, padding: 16 }}>
       {/* Document Stats */}
       <View style={{ backgroundColor: '#F3F4F6', padding: 16, borderRadius: 8, marginBottom: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -599,6 +606,7 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
           </View>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </LinearGradient>
   );
 };

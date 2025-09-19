@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import { API_BASE_URL } from '../config/api';
@@ -48,12 +49,12 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
 
   // Debug rendering
   useEffect(() => {
-    console.log('🔍 Rendering check - isGuest:', isGuest, 'userOrganizations.length:', userOrganizations.length, 'userOrganizations:', userOrganizations);
+    //console.log('🔍 Rendering check - isGuest:', isGuest, 'userOrganizations.length:', userOrganizations.length, 'userOrganizations:', userOrganizations);
   }, [isGuest, userOrganizations]);
 
   const loadUserOrganizations = async () => {
-    console.log('🔍 loadUserOrganizations called for user:', user?.email, 'currentRole:', user?.currentRole);
-    console.log('🔍 user.accessibleOrgs:', user?.accessibleOrgs);
+    //console.log('🔍 loadUserOrganizations called for user:', user?.email, 'currentRole:', user?.currentRole);
+    //console.log('🔍 user.accessibleOrgs:', user?.accessibleOrgs);
     
     if (!user?.accessibleOrgs) {
       console.log('🔍 No accessibleOrgs found, returning');
@@ -79,7 +80,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
     
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
       const access = orgAccess as any;
-      console.log('🔍 Processing org:', orgId, 'access:', access);
+      //console.log('🔍 Processing org:', orgId, 'access:', access);
       
       userOrgs.push({
         orgId: orgId,
@@ -89,7 +90,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         userRole: access.role
       });
     }
-    console.log('🔍 Final userOrgs:', userOrgs);
+    //console.log('🔍 Final userOrgs:', userOrgs);
     setUserOrganizations(userOrgs);
   };
 
@@ -307,19 +308,25 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
   };
 
   return (
-    <ScrollView style={{ flex: 1, padding: 16, backgroundColor: '#F9FAFB' }}>
+    <LinearGradient
+      colors={['#1E3A8A', '#581C87']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <ScrollView style={{ flex: 1, padding: 16 }}>
       <View style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 8 }}>
           Welcome!
         </Text>
-        <Text style={{ fontSize: 16, color: '#6B7280', marginBottom: 24 }}>
+        <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 24 }}>
           {isGuest ? 'Guest User' : (user?.email || 'No email available')}
         </Text>
       </View>
 
       {/* Search Organizations */}
       <View style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+        <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 12 }}>
           Search Organizations
         </Text>
         <TextInput
@@ -356,13 +363,13 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         {(isSearching || searchResults.length > 0) && (
           <View style={{ marginTop: 12 }}>
             {isSearching ? (
-              <Text style={{ textAlign: 'center', color: '#6B7280', padding: 16 }}>
-                Searching...
-              </Text>
+                <Text style={{ textAlign: 'center', color: 'rgba(255, 255, 255, 0.8)', padding: 16 }}>
+                  Searching...
+                </Text>
             ) : searchResults.length > 0 ? (
               <>
                 {/* Results Info */}
-                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
+                <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 12, textAlign: 'center' }}>
                   Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, searchResults.length)} of {searchResults.length} organizations
                 </Text>
                 
@@ -483,9 +490,9 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
                 )}
               </>
             ) : (
-              <Text style={{ textAlign: 'center', color: '#6B7280', padding: 16 }}>
-                No organizations found
-              </Text>
+                <Text style={{ textAlign: 'center', color: 'rgba(255, 255, 255, 0.8)', padding: 16 }}>
+                  No organizations found
+                </Text>
             )}
           </View>
         )}
@@ -494,12 +501,12 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       {/* My Organizations */}
       {!isGuest && userOrganizations.length > 0 && (
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 12 }}>
             My Organizations
           </Text>
           
           {/* Results Info */}
-          <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
+          <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 12, textAlign: 'center' }}>
             Showing {((myOrgsCurrentPage - 1) * itemsPerPage) + 1}-{Math.min(myOrgsCurrentPage * itemsPerPage, userOrganizations.length)} of {userOrganizations.length} organizations
           </Text>
           
@@ -622,7 +629,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       {/* Create Organization - Only show for non-guests */}
       {!isGuest && (
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 12 }}>
             Create New Organization
           </Text>
           <TextInput
@@ -657,12 +664,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         </View>
       )}
 
-      {/* Help Text */}
-      <View style={{ backgroundColor: '#F3F4F6', padding: 16, borderRadius: 8 }}>
-        <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-          Create an account to form organizations.
-        </Text>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </LinearGradient>
   );
 };

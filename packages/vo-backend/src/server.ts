@@ -149,7 +149,7 @@ app.post('/api/auth/client/invitation', async (req, res) => {
 // Guest authentication endpoint - creates proper JWT tokens
 app.post('/api/auth/guest', async (req, res) => {
   try {
-    console.log('🎭 Creating guest user with database record');
+    // console.log('🎭 Creating guest user with database record');
     
     // Use the proper createGuest method which creates a database record
     const result = await authServiceInstance.createGuest();
@@ -160,7 +160,7 @@ app.post('/api/auth/guest', async (req, res) => {
     
     // Fallback for development when database is unavailable
     if (error.message === 'Auth service not initialized') {
-      console.log('🎭 Database unavailable, creating temporary guest token');
+      // console.log('🎭 Database unavailable, creating temporary guest token');
       
       const guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
       const jwtPayload = {
@@ -268,20 +268,20 @@ app.get('/api/orgs/public', async (req, res) => {
   try {
     const allOrgs = await authServiceInstance.getOrganizations();
     
-    console.log('🔍 All organizations:', allOrgs.map(org => ({ 
-      name: org.name, 
-      orgId: org.orgId, 
-      isPublic: org.isPublic 
-    })));
+    // console.log('🔍 All organizations:', allOrgs.map(org => ({ 
+    //   name: org.name, 
+    //   orgId: org.orgId, 
+    //   isPublic: org.isPublic 
+    // })));
     
     // Filter for public organizations only
     const publicOrgs = allOrgs.filter(org => org.isPublic === true);
     
-    console.log('🔍 Public organizations:', publicOrgs.map(org => ({ 
-      name: org.name, 
-      orgId: org.orgId, 
-      isPublic: org.isPublic 
-    })));
+    // console.log('🔍 Public organizations:', publicOrgs.map(org => ({ 
+    //   name: org.name, 
+    //   orgId: org.orgId, 
+    //   isPublic: org.isPublic 
+    // })));
     
     res.json(publicOrgs);
   } catch (error: any) {
@@ -355,19 +355,19 @@ app.post('/api/auth/multi-role/switch-organization', authenticateToken, async (r
     const user = (req as any).user;
     const { orgId } = req.body;
     
-    console.log('🔄 Switch organization endpoint called:', {
-      userId: user.userId,
-      targetOrgId: orgId,
-      currentOrgId: user.orgId,
-      currentRole: user.role
-    });
+    // console.log('🔄 Switch organization endpoint called:', {
+    //   userId: user.userId,
+    //   targetOrgId: orgId,
+    //   currentOrgId: user.orgId,
+    //   currentRole: user.role
+    // });
     
     if (!orgId) {
       return res.status(400).json({ error: 'Organization ID is required' });
     }
 
     const result = await authService.switchOrganizationMultiRole(user.userId, orgId);
-    console.log('🔄 Switch organization successful');
+    // console.log('🔄 Switch organization successful');
     res.json(result);
   } catch (error: any) {
     console.error('❌ Switch organization error:', error.message);
@@ -491,7 +491,7 @@ app.get('/api/org/info', authenticateToken, requireUser, async (req, res) => {
     const user = (req as any).user;
     // Use currentOrgId for multi-role system, fallback to orgId for legacy
     const orgId = user.currentOrgId || user.orgId;
-    console.log('🔍 /api/org/info - using orgId:', orgId, 'from user:', { currentOrgId: user.currentOrgId, orgId: user.orgId });
+    // console.log('🔍 /api/org/info - using orgId:', orgId, 'from user:', { currentOrgId: user.currentOrgId, orgId: user.orgId });
     const organization = await authService.getOrganization(orgId);
     
     if (!organization) {
@@ -517,7 +517,7 @@ app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, 
 
     // Use currentOrgId for multi-role system, fallback to orgId for legacy
     const orgId = user.currentOrgId || user.orgId;
-    console.log('🔍 /api/org/description - using orgId:', orgId, 'for user:', user.email);
+    // console.log('🔍 /api/org/description - using orgId:', orgId, 'for user:', user.email);
     
     await authService.updateOrganizationDescription(orgId, orgDescription);
     res.json({ success: true, message: 'Organization description updated successfully' });
@@ -625,25 +625,25 @@ app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
     // If RAG is enabled, search for relevant documents
     if (useRAG) {
       try {
-        console.log(`\n🚀 === NEW RAG REQUEST ${requestId} ===`);
-        console.log('🔍 RAG: Searching for documents related to:', message);
-        console.log('🔍 RAG: Organization:', user.orgId);
-        console.log('🔍 RAG: RAG_SEARCH_LIMIT env var:', process.env.RAG_SEARCH_LIMIT);
+        // console.log(`\n🚀 === NEW RAG REQUEST ${requestId} ===`);
+        // console.log('🔍 RAG: Searching for documents related to:', message);
+        // console.log('🔍 RAG: Organization:', user.orgId);
+        // console.log('🔍 RAG: RAG_SEARCH_LIMIT env var:', process.env.RAG_SEARCH_LIMIT);
         const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10);
-        console.log('🔍 RAG: Parsed search limit:', searchLimit);
+        // console.log('🔍 RAG: Parsed search limit:', searchLimit);
         
         // Initialize RAG service for this organization
         await ragService.initialize(user.orgId);
         
         // Use semantic search if enabled
         const useSemanticSearch = process.env.USE_SEMANTIC_SEARCH === 'true';
-        console.log('🧠 RAG: Using semantic search:', useSemanticSearch);
+        // console.log('🧠 RAG: Using semantic search:', useSemanticSearch);
         
         const relevantDocs = useSemanticSearch 
           ? await semanticDocumentService.semanticSearch(message, user.orgId, searchLimit)
           : await ragService.searchSimilarDocuments(message, user.orgId, searchLimit);
-        console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
-        console.log('📄 RAG: Search limit was', searchLimit);
+        // console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
+        // console.log('📄 RAG: Search limit was', searchLimit);
         
         if (relevantDocs.length > 0) {
           const context = relevantDocs
@@ -664,16 +664,16 @@ ${context}
 Answer the user's question using ONLY the information provided above.`;
 
           sources = relevantDocs.map(doc => doc.metadata.source);
-          console.log('✅ RAG: Using context from', sources.length, 'sources');
-          console.log('✅ RAG: Sources are:', sources);
+          // console.log('✅ RAG: Using context from', sources.length, 'sources');
+          // console.log('✅ RAG: Sources are:', sources);
           
           // Debug: Show similarity scores for each document
-          console.log('🔍 RAG: Document similarity scores:');
-          relevantDocs.forEach((doc, index) => {
-            console.log(`  ${index + 1}. ${doc.metadata.source} - Score: ${doc.metadata.similarityScore?.toFixed(3) || 'N/A'}`);
-          });
+          // console.log('🔍 RAG: Document similarity scores:');
+          // relevantDocs.forEach((doc, index) => {
+          //   console.log(`  ${index + 1}. ${doc.metadata.source} - Score: ${doc.metadata.similarityScore?.toFixed(3) || 'N/A'}`);
+          // });
         } else {
-          console.log('❌ RAG: No relevant documents found for query');
+          // console.log('❌ RAG: No relevant documents found for query');
           // Return early with a clear message when no documents are found
           return res.json({
             message: "I don't have information about that in my knowledge base. Please ask about topics covered in the uploaded documents, or try rephrasing your question.",
@@ -740,8 +740,8 @@ Answer the user's question using ONLY the information provided above.`;
       sources: sources.length > 0 ? sources : undefined
     };
 
-    console.log(`📤 REQUEST ${requestId} - Sending to frontend - Sources:`, chatResponse.sources);
-    console.log(`✅ === END RAG REQUEST ${requestId} ===\n`);
+    // console.log(`📤 REQUEST ${requestId} - Sending to frontend - Sources:`, chatResponse.sources);
+    // console.log(`✅ === END RAG REQUEST ${requestId} ===\n`);
     res.json(chatResponse);
   } catch (error: any) {
     console.error('xAI API error:', error.response?.data || error.message);
@@ -759,7 +759,7 @@ app.post('/api/documents/upload-semantic', authenticateToken, requireOrgAdmin, u
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log(`🧠 Processing file with semantic chunking: ${req.file.originalname}`);
+    // console.log(`🧠 Processing file with semantic chunking: ${req.file.originalname}`);
     
     if (req.file.mimetype === 'text/plain') {
       const user = (req as any).user; // Get user from auth middleware
@@ -906,7 +906,7 @@ app.get('/api/config/rag', authenticateToken, requireUser, (req, res) => {
     ragSearchLimit: parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10)
   };
   
-  console.log('📋 RAG Config requested:', config);
+  // console.log('📋 RAG Config requested:', config);
   res.json(config);
 });
 
@@ -929,7 +929,7 @@ app.post('/api/config/rag', authenticateToken, requireOrgAdmin, (req, res) => {
       ragSearchLimit: parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10)
     };
     
-    console.log('⚙️ RAG Config updated:', updatedConfig);
+    // console.log('⚙️ RAG Config updated:', updatedConfig);
     
     res.json({
       message: 'RAG configuration updated successfully',
@@ -969,13 +969,13 @@ app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (r
       return res.status(400).json({ error: 'Document IDs are required' });
     }
 
-    console.log(`🗑️ Delete request received:`, { documentIds, count: documentIds.length });
-    console.log(`🗑️ Document IDs types:`, documentIds.map(id => ({ id, type: typeof id })));
+    // console.log(`🗑️ Delete request received:`, { documentIds, count: documentIds.length });
+    // console.log(`🗑️ Document IDs types:`, documentIds.map(id => ({ id, type: typeof id })));
     
     // Delete documents by their source names (documentIds are actually source names)
     const deletedCount = await documentService.deleteDocumentsBySources(documentIds);
     
-    console.log(`✅ Deleted ${deletedCount} document chunks for sources: ${documentIds.join(', ')}`);
+    // console.log(`✅ Deleted ${deletedCount} document chunks for sources: ${documentIds.join(', ')}`);
     
     res.json({
       message: `${documentIds.length} document(s) deleted successfully`,
@@ -1035,13 +1035,13 @@ app.post('/api/documents/search', async (req, res) => {
   }
 });
 
-console.log('About to start server...');
+// console.log('About to start server...');
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Server accessible at http://0.0.0.0:${PORT}`);
-  console.log(`Local access: http://localhost:${PORT}`);
-  console.log(`Network access: http://192.168.1.86:${PORT}`);
-  console.log('Server started successfully, keeping alive...');
+  // console.log(`Server running on port ${PORT}`);
+  // console.log(`Server accessible at http://0.0.0.0:${PORT}`);
+  // console.log(`Local access: http://localhost:${PORT}`);
+  // console.log(`Network access: http://192.168.1.86:${PORT}`);
+  // console.log('Server started successfully, keeping alive...');
 });
 
 server.on('error', (error: any) => {
@@ -1049,7 +1049,7 @@ server.on('error', (error: any) => {
 });
 
 server.on('close', () => {
-  console.log('Server closed');
+  // console.log('Server closed');
 });
 
 process.on('uncaughtException', (error) => {
@@ -1063,7 +1063,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Handle multiple shutdown signals
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+  // console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
   
   try {
     // Close HTTP server first
@@ -1071,16 +1071,16 @@ const gracefulShutdown = async (signal: string) => {
       if (err) {
         console.error('❌ Error closing HTTP server:', err);
       } else {
-        console.log('✅ HTTP server closed');
+        // console.log('✅ HTTP server closed');
       }
       
       try {
         // Close RAG service connections (MongoDB, embeddings)
-        console.log('🔌 Closing RAG service...');
+        // console.log('🔌 Closing RAG service...');
         await ragService.close();
-        console.log('✅ RAG service closed');
+        // console.log('✅ RAG service closed');
         
-        console.log('✅ All services closed successfully');
+        // console.log('✅ All services closed successfully');
         process.exit(0);
       } catch (error) {
         console.error('❌ Error during service shutdown:', error);
@@ -1104,4 +1104,4 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon restart
 
-console.log('Script execution completed');
+// console.log('Script execution completed');
