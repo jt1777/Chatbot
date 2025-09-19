@@ -376,7 +376,7 @@ export class AuthService {
               orgsMap.set(orgId, {
                 _id: orgId,
                 name: orgDetails?.name || orgId,
-                isPublic: orgDetails?.isPublic !== false, // Default to true
+                isPublic: (access as any).isPublic !== false, // Use isPublic from organizationAccess
                 adminCount: 1
               });
             } else {
@@ -896,7 +896,7 @@ export class AuthService {
       throw new Error('Auth service not initialized');
     }
 
-    // Update direct orgId matches
+    // Update direct orgId matches (legacy format)
     const result1 = await this.usersCollection.updateMany(
       { orgId, role: 'admin' },
       { 
@@ -907,7 +907,7 @@ export class AuthService {
       }
     );
 
-    // Update organizations array matches
+    // Update organizations array matches (legacy format)
     const result2 = await this.usersCollection.updateMany(
       { 
         'organizations.orgId': orgId,
@@ -921,7 +921,20 @@ export class AuthService {
       }
     );
 
-    if (result1.matchedCount === 0 && result2.matchedCount === 0) {
+    // Update organizationAccess field (multi-role format)
+    const result3 = await this.usersCollection.updateMany(
+      { 
+        [`organizationAccess.${orgId}.role`]: 'admin'
+      },
+      { 
+        $set: { 
+          [`organizationAccess.${orgId}.isPublic`]: isPublic,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (result1.matchedCount === 0 && result2.matchedCount === 0 && result3.matchedCount === 0) {
       throw new Error('Organization not found');
     }
   }

@@ -537,10 +537,45 @@ app.put('/api/org/visibility', authenticateToken, requireOrgAdmin, async (req, r
       return res.status(400).json({ error: 'isPublic must be a boolean value' });
     }
 
-    await authService.updateOrganizationVisibility(user.orgId, isPublic);
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+    await authService.updateOrganizationVisibility(orgId, isPublic);
     res.json({ success: true, message: `Organization is now ${isPublic ? 'public' : 'private'}` });
   } catch (error: any) {
     console.error('Update organization visibility error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get admin counts for user's accessible organizations
+app.get('/api/user/org-admin-counts', authenticateToken, requireUser, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { orgIds } = req.query;
+    
+    if (!orgIds || !Array.isArray(orgIds)) {
+      return res.status(400).json({ error: 'orgIds query parameter is required and must be an array' });
+    }
+
+    const adminCounts: { [orgId: string]: number } = {};
+    
+    for (const orgId of orgIds) {
+      try {
+        const org = await authServiceInstance.getOrganization(orgId as string);
+        if (org) {
+          adminCounts[orgId as string] = org.adminCount || 0;
+        } else {
+          adminCounts[orgId as string] = 0;
+        }
+      } catch (error) {
+        console.error(`Error getting admin count for org ${orgId}:`, error);
+        adminCounts[orgId as string] = 0;
+      }
+    }
+    
+    res.json(adminCounts);
+  } catch (error: any) {
+    console.error('Get org admin counts error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -60,30 +60,31 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       return;
     }
     
+    const orgIds = Object.keys(user.accessibleOrgs);
     const userOrgs: Organization[] = [];
+    
+    // Fetch admin counts for all organizations at once
+    let adminCounts: { [orgId: string]: number } = {};
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/user/org-admin-counts?${orgIds.map(id => `orgIds=${id}`).join('&')}`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token || ''}`
+        }
+      });
+      adminCounts = response.data;
+    } catch (error) {
+      console.error('Error fetching admin counts:', error);
+    }
+    
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
       const access = orgAccess as any;
       console.log('🔍 Processing org:', orgId, 'access:', access);
       
-      // Fetch admin count for this organization
-      let adminCount = 0;
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/orgs/search?q=${encodeURIComponent(access.orgName || orgId)}`);
-        if (response.data && response.data.length > 0) {
-          // Find the matching organization in search results
-          const matchingOrg = response.data.find((org: any) => org.orgId === orgId);
-          if (matchingOrg) {
-            adminCount = matchingOrg.adminCount || 0;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching admin count for org:', orgId, error);
-      }
-      
       userOrgs.push({
         orgId: orgId,
         name: access.orgName || 'Unknown Organization',
-        adminCount: adminCount,
+        adminCount: adminCounts[orgId] || 0,
         isPublic: access.isPublic || false,
         userRole: access.role
       });
