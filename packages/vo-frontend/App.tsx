@@ -194,6 +194,7 @@ function MainApp() {
           input={input}
           isLoading={chatLoading}
           strictMode={strictMode}
+          isGuest={user?.currentRole === 'guest' || user?.role === 'guest'}
           onInputChange={setInput}
           onSendMessage={sendMessage}
           onClearChat={clearChat}

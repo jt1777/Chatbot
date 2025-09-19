@@ -268,8 +268,20 @@ app.get('/api/orgs/public', async (req, res) => {
   try {
     const allOrgs = await authServiceInstance.getOrganizations();
     
+    console.log('🔍 All organizations:', allOrgs.map(org => ({ 
+      name: org.name, 
+      orgId: org.orgId, 
+      isPublic: org.isPublic 
+    })));
+    
     // Filter for public organizations only
-    const publicOrgs = allOrgs.filter(org => org.isPublic !== false);
+    const publicOrgs = allOrgs.filter(org => org.isPublic === true);
+    
+    console.log('🔍 Public organizations:', publicOrgs.map(org => ({ 
+      name: org.name, 
+      orgId: org.orgId, 
+      isPublic: org.isPublic 
+    })));
     
     res.json(publicOrgs);
   } catch (error: any) {
@@ -406,6 +418,24 @@ app.get('/api/auth/multi-role/organizations', authenticateToken, async (req, res
 });
 
 // Organization management endpoints
+// Create organization (for existing users to become admin)
+app.post('/api/org/create-new', authenticateToken, requireUser, async (req, res) => {
+  try {
+    const { orgName } = req.body;
+    const userId = (req as any).user.userId;
+    
+    if (!orgName) {
+      return res.status(400).json({ error: 'Organization name is required' });
+    }
+    
+    const result = await authServiceInstance.createOrganizationForUser(userId, orgName);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Create organization error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.post('/api/org/create', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const user = (req as any).user;

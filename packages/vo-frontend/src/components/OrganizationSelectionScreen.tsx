@@ -29,6 +29,10 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
   const [searchResults, setSearchResults] = useState<Organization[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [userOrganizations, setUserOrganizations] = useState<Organization[]>([]);
+  const [newOrgName, setNewOrgName] = useState<string>('');
+  const [isCreatingOrg, setIsCreatingOrg] = useState<boolean>(false);
+
+  const isGuest = user?.currentRole === 'guest' || user?.role === 'guest';
 
   // Load user's organizations
   useEffect(() => {
@@ -85,11 +89,11 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
 
   // Handle joining an organization
   const handleJoinOrganization = async (orgId: string) => {
-    console.log('🔄 Join button clicked for orgId:', orgId);
+    //console.log('🔄 Join button clicked for orgId:', orgId);
     const orgName = searchResults.find(org => org.orgId === orgId)?.name || 'this organization';
-    console.log('🔄 Organization name:', orgName);
-    console.log('🔄 Current user:', user);
-    console.log('🔄 Current token:', token);
+    //console.log('🔄 Organization name:', orgName);
+    //console.log('🔄 Current user:', user);
+    //console.log('🔄 Current token:', token);
     
     // Show joining toast and proceed directly
     Toast.show({
@@ -99,7 +103,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       visibilityTime: 2000,
     });
     
-    console.log('🔄 Making API call...');
+    //console.log('🔄 Making API call...');
     try {
       // Guests now have proper JWT tokens, so they can use the regular client endpoint
       const response = await axios.post(`${API_BASE_URL}/api/client/join-organization`, {
@@ -111,13 +115,13 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         }
       });
 
-      console.log('🔄 API response:', response.data);
+      //console.log('🔄 API response:', response.data);
 
       // Update the user context with the new auth response
       if (response.data.token && response.data.user) {
-        console.log('🔄 Updating user context...');
+        //console.log('🔄 Updating user context...');
         await updateUser(response.data.token, response.data.user);
-        console.log('🔄 User context updated successfully');
+        //console.log('🔄 User context updated successfully');
       }
       
       // Show success toast
@@ -128,7 +132,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         visibilityTime: 3000,
       });
       
-      console.log('🔄 Calling onOrganizationSelected...');
+      //console.log('🔄 Calling onOrganizationSelected...');
       onOrganizationSelected(); // This will close the selection screen
     } catch (error) {
       console.error('❌ Error joining organization:', error);
@@ -143,16 +147,61 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
     }
   };
 
-  const isGuest = user?.currentRole === 'guest' || user?.role === 'guest';
+  const handleCreateOrganization = async () => {
+    if (!newOrgName.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter an organization name',
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
+    setIsCreatingOrg(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/org/create-new`, {
+        orgName: newOrgName.trim()
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Update the user context with the new auth response
+      if (response.data.token && response.data.user) {
+        await updateUser(response.data.token, response.data.user);
+      }
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Organization Created!',
+        text2: `Welcome to ${newOrgName}`,
+        visibilityTime: 3000,
+      });
+      
+      setNewOrgName('');
+      onOrganizationSelected(); // Close the selection screen
+    } catch (error: any) {
+      console.error('❌ Error creating organization:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to create organization';
+      Toast.show({
+        type: 'error',
+        text1: 'Creation Failed',
+        text2: errorMessage,
+        visibilityTime: 4000,
+      });
+    } finally {
+      setIsCreatingOrg(false);
+    }
+  };
 
   return (
     <ScrollView style={{ flex: 1, padding: 16, backgroundColor: '#F9FAFB' }}>
       <View style={{ marginBottom: 24 }}>
         <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-          Welcome back!
+          Welcome!
         </Text>
         <Text style={{ fontSize: 16, color: '#6B7280', marginBottom: 24 }}>
-          {user?.email || 'No email available'}
+          {isGuest ? 'Guest User' : (user?.email || 'No email available')}
         </Text>
       </View>
 
@@ -275,21 +324,39 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
         </View>
       )}
 
-      {/* Action Buttons - Only show for non-guests */}
+      {/* Create Organization - Only show for non-guests */}
       {!isGuest && (
         <View style={{ marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 }}>
+            Create New Organization
+          </Text>
+          <TextInput
+            style={{
+              borderWidth: 1,
+              borderColor: '#D1D5DB',
+              borderRadius: 8,
+              padding: 12,
+              fontSize: 16,
+              backgroundColor: 'white',
+              marginBottom: 12,
+            }}
+            placeholder="Enter organization name"
+            value={newOrgName}
+            onChangeText={setNewOrgName}
+            editable={!isCreatingOrg}
+          />
           <TouchableOpacity
             style={{
-              backgroundColor: '#3B82F6',
+              backgroundColor: newOrgName.trim() ? '#3B82F6' : '#9CA3AF',
               padding: 16,
               borderRadius: 8,
-              marginBottom: 12,
               alignItems: 'center',
             }}
-            onPress={onCreateOrganization}
+            onPress={handleCreateOrganization}
+            disabled={!newOrgName.trim() || isCreatingOrg}
           >
             <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
-              Create New Organization
+              {isCreatingOrg ? 'Creating...' : 'Create Organization'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -298,7 +365,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       {/* Help Text */}
       <View style={{ backgroundColor: '#F3F4F6', padding: 16, borderRadius: 8 }}>
         <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-          You can create organizations if you do not find one that matches your requirements.
+          Only registered users may create organizations.
         </Text>
       </View>
     </ScrollView>

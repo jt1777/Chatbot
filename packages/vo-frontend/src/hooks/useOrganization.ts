@@ -87,7 +87,7 @@ export const useOrganization = (token: string | null) => {
   const loadOrganizationInfo = useCallback(async () => {
     // Skip API call for guests
     if ((user as any)?.role === 'guest' || !authToken) {
-      console.log('Skipping organization info load for guest user');
+      //console.log('Skipping organization info load for guest user');
       return;
     }
 
@@ -133,11 +133,11 @@ export const useOrganization = (token: string | null) => {
   }, [orgDescription, authToken, loadOrganizationInfo]);
 
   const loadClientOrganizationInfo = useCallback(async () => {
-    console.log('loadClientOrganizationInfo called with authToken:', !!authToken, 'user role:', (user as any)?.role);
+    //console.log('loadClientOrganizationInfo called with authToken:', !!authToken, 'user role:', (user as any)?.role);
     
-    // Skip API call for guests or if no auth token
-    if ((user as any)?.role === 'guest' || !authToken) {
-      console.log('Skipping client organization info load for guest user or no auth token');
+    // Skip API call if no auth token
+    if (!authToken) {
+      console.log('Skipping client organization info load - no auth token');
       setClientOrgInfo(null);
       return;
     }
@@ -149,7 +149,7 @@ export const useOrganization = (token: string | null) => {
           'Authorization': `Bearer ${authToken}`
         }
       });
-      console.log('Client organization info loaded successfully:', response.data);
+      //console.log('Client organization info loaded successfully:', response.data);
       setClientOrgInfo(response.data);
     } catch (error: any) {
       console.error('Error loading client organization info:', error);
@@ -233,18 +233,6 @@ export const useOrganization = (token: string | null) => {
     setIsSwitchingOrg(false);
   }, []);
 
-  // Clear organization state for guests
-  const clearGuestState = useCallback(() => {
-    setClientOrgInfo(null);
-  }, []);
-
-  // Clear organization state when user becomes a guest
-  useEffect(() => {
-    if ((user as any)?.role === 'guest') {
-      console.log('User is guest, clearing organization state');
-      clearGuestState();
-    }
-  }, [(user as any)?.role, clearGuestState]);
 
   const togglePublicPrivate = useCallback(async () => {
     setIsUpdatingVisibility(true);
@@ -310,6 +298,5 @@ export const useOrganization = (token: string | null) => {
     switchOrganization,
     togglePublicPrivate,
     resetOrganizationData,
-    clearGuestState,
   };
 };

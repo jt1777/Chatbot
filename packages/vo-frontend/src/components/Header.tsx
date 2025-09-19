@@ -7,6 +7,8 @@ interface HeaderProps {
     phone?: string;
     orgName?: string;
     orgId: string;
+    role?: string;
+    currentRole?: string;
   } | null;
   isAdmin: boolean;
   isClient: boolean;
@@ -29,6 +31,17 @@ export const Header: React.FC<HeaderProps> = ({
   onTabChange,
   onClientTabChange,
 }) => {
+  // Check if guest has selected an organization
+  const isGuest = user?.currentRole === 'guest' || user?.role === 'guest';
+  const guestHasOrganization = isGuest && user?.orgName && user?.orgName !== 'No Organization';
+  const shouldDisableTabsForGuest = isGuest && !guestHasOrganization;
+  
+  // Check if client has joined an organization
+  const clientHasOrganization = isClient && user?.orgName && user?.orgName !== 'No Organization';
+  const shouldDisableTabsForClient = isClient && !clientHasOrganization;
+  
+  // Combined logic for disabling tabs
+  const shouldDisableTabs = shouldDisableTabsForGuest || shouldDisableTabsForClient;
   return (
     <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -51,9 +64,14 @@ export const Header: React.FC<HeaderProps> = ({
       </View>
       
       {/* User Info */}
-      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 12 }}>
-        {isAdmin ? `Admin: ${user?.email}` : `Client: ${user?.phone}`} • Org: {user?.orgName || user?.orgId}
-      </Text>
+      <View style={{ marginBottom: 12 }}>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 4 }}>
+          {isAdmin ? `Admin: ${user?.email}` : `Client: ${(user?.currentRole === 'guest' || user?.role === 'guest') ? 'Guest' : (user?.email || user?.phone || 'Guest')}`}
+        </Text>
+        <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+          Org: {user?.orgName || 'No Organization'}
+        </Text>
+      </View>
       
       {/* Tab Navigation */}
       <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
@@ -79,10 +97,19 @@ export const Header: React.FC<HeaderProps> = ({
             borderRadius: 16,
             backgroundColor: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'rgba(255,255,255,0.2)' : 'transparent',
             marginRight: 8,
+            opacity: shouldDisableTabs ? 0.5 : 1,
           }}
-          onPress={() => isAdmin ? onTabChange('chat') : onClientTabChange('chat')}
+          onPress={() => {
+            if (!shouldDisableTabs) {
+              isAdmin ? onTabChange('chat') : onClientTabChange('chat');
+            }
+          }}
+          disabled={shouldDisableTabs}
         >
-          <Text style={{ color: 'white', fontWeight: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'bold' : 'normal' }}>
+          <Text style={{ 
+            color: shouldDisableTabs ? 'rgba(255,255,255,0.5)' : 'white', 
+            fontWeight: (isAdmin ? currentTab === 'chat' : clientCurrentTab === 'chat') ? 'bold' : 'normal' 
+          }}>
             Chat
           </Text>
         </TouchableOpacity>
@@ -120,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
           onPress={() => onTabChange('organizations')}
         >
           <Text style={{ color: 'white', fontWeight: currentTab === 'organizations' ? 'bold' : 'normal' }}>
-            Organizations
+            Org Profile
           </Text>
           </TouchableOpacity>
         )}
@@ -133,11 +160,20 @@ export const Header: React.FC<HeaderProps> = ({
               paddingVertical: 8,
               borderRadius: 16,
               backgroundColor: clientCurrentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              opacity: shouldDisableTabs ? 0.5 : 1,
             }}
-            onPress={() => onClientTabChange('organizations')}
+            onPress={() => {
+              if (!shouldDisableTabs) {
+                onClientTabChange('organizations');
+              }
+            }}
+            disabled={shouldDisableTabs}
           >
-            <Text style={{ color: 'white', fontWeight: clientCurrentTab === 'organizations' ? 'bold' : 'normal' }}>
-              Organizations
+            <Text style={{ 
+              color: shouldDisableTabs ? 'rgba(255,255,255,0.5)' : 'white', 
+              fontWeight: clientCurrentTab === 'organizations' ? 'bold' : 'normal' 
+            }}>
+              Org Profile
             </Text>
           </TouchableOpacity>
         )}

@@ -100,7 +100,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               'ngrok-skip-browser-warning': 'true'
             }
           });
-          console.log('🗑️ Backend logout completed');
+          //console.log('🗑️ Backend logout completed');
         } catch (error) {
           console.error('Backend logout error (continuing anyway):', error);
           // Continue with frontend cleanup even if backend logout fails
@@ -117,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Remove axios authorization header
       delete axios.defaults.headers.common['Authorization'];
       
-      console.log('✅ Frontend logout completed');
+      //console.log('✅ Frontend logout completed');
     } catch (error) {
       console.error('Error clearing auth data:', error);
     }

@@ -27,12 +27,12 @@ export const useAppState = (token: string | null, userId: string | undefined, is
 
   // Load client organization info when switching to client profile
   useEffect(() => {
-    console.log('useAppState useEffect - clientCurrentTab:', clientCurrentTab, 'isClient:', isClient, 'userRole:', userRole);
+    //console.log('useAppState useEffect - clientCurrentTab:', clientCurrentTab, 'isClient:', isClient, 'userRole:', userRole);
     if (clientCurrentTab === 'organizations' && isClient) {
-      console.log('Loading client organization info...');
+      //console.log('Loading client organization info...');
       organization.loadClientOrganizationInfo();
     } else {
-      console.log('Skipping client organization info load - not on organizations tab or not a client');
+      //console.log('Skipping client organization info load - not on organizations tab or not a client');
     }
   }, [clientCurrentTab, isClient, userRole]);
 

@@ -13,6 +13,7 @@ interface ChatInterfaceProps {
   input: string;
   isLoading: boolean;
   strictMode: boolean;
+  isGuest?: boolean;
   onInputChange: (text: string) => void;
   onSendMessage: () => void;
   onClearChat: () => void;
@@ -24,6 +25,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   input,
   isLoading,
   strictMode,
+  isGuest = false,
   onInputChange,
   onSendMessage,
   onClearChat,
@@ -95,7 +97,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       }}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 14, color: '#6B7280' }}>
-            {strictMode ? '🔒 Strict Mode: Only knowledge base' : '🌐 General Mode: AI + knowledge base'}
+            {isGuest 
+              ? '🔒 Guest Mode: Strict only - knowledge base only' 
+              : (strictMode ? '🔒 Strict Mode: Only knowledge base' : '🌐 General Mode: AI + knowledge base')
+            }
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -121,16 +126,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={onToggleStrictMode}
+            onPress={isGuest ? undefined : onToggleStrictMode}
             style={{
-              backgroundColor: strictMode ? '#10B981' : '#6B7280',
+              backgroundColor: isGuest ? '#10B981' : (strictMode ? '#10B981' : '#6B7280'),
               borderRadius: 12,
               paddingHorizontal: 12,
-              paddingVertical: 4
+              paddingVertical: 4,
+              opacity: isGuest ? 0.7 : 1
             }}
+            disabled={isGuest}
           >
             <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>
-              {strictMode ? 'STRICT' : 'GENERAL'}
+              {isGuest ? 'STRICT ONLY' : (strictMode ? 'STRICT' : 'GENERAL')}
             </Text>
           </TouchableOpacity>
         </View>
