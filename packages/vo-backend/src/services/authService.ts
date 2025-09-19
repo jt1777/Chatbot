@@ -1078,6 +1078,19 @@ export class AuthService {
     // Generate new token with admin access
     const token = this.generateMultiRoleToken(migratedUser, orgId);
 
+    // Build accessibleOrgs from organizationAccess
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+    if (migratedUser.organizationAccess) {
+      for (const [orgIdKey, access] of Object.entries(migratedUser.organizationAccess)) {
+        accessibleOrgs[orgIdKey] = {
+          role: access.role,
+          orgName: access.orgName || `Organization ${orgIdKey}`,
+          orgDescription: access.orgDescription,
+          isPublic: access.isPublic
+        };
+      }
+    }
+
     return {
       token,
       user: {
@@ -1090,7 +1103,7 @@ export class AuthService {
         orgName: orgName,
         orgDescription: '',
         organizationAccess: migratedUser.organizationAccess,
-        accessibleOrgs: { [orgId]: { role: 'admin', orgName: orgName, isPublic: true } },
+        accessibleOrgs: accessibleOrgs,
         createdAt: migratedUser.createdAt,
         updatedAt: new Date()
       } as any
@@ -1331,12 +1344,11 @@ export class AuthService {
     }
 
     // Check if email already exists
-    const existingClient = await this.usersCollection.findOne({ 
-      email: email.trim(),
-      role: 'client'
+    const existingUser = await this.usersCollection.findOne({
+      email: email.trim()
     });
 
-    if (existingClient) {
+    if (existingUser) {
       throw new Error('Email already exists');
     }
 
@@ -1355,21 +1367,61 @@ export class AuthService {
       throw new Error('Invite code has expired');
     }
 
+    // Get organization info from admin
+    let orgId: string;
+    let orgName: string;
+    let orgDescription: string;
+    let isPublic: boolean;
+
+    if (admin.organizationAccess && Object.keys(admin.organizationAccess).length > 0) {
+      // Multi-role admin - get org from organizationAccess
+      const adminOrgs = Object.keys(admin.organizationAccess);
+      orgId = adminOrgs[0] || ''; // Use first organization
+      const orgAccess = admin.organizationAccess[orgId];
+      if (orgAccess) {
+        orgName = orgAccess.orgName || `Organization ${orgId}`;
+        orgDescription = orgAccess.orgDescription || '';
+        isPublic = orgAccess.isPublic !== false;
+      } else {
+        // Fallback if orgAccess is undefined
+        orgName = `Organization ${orgId}`;
+        orgDescription = '';
+        isPublic = true;
+      }
+    } else {
+      // Legacy admin - use old format
+      orgId = admin.orgId!;
+      orgName = admin.orgName || `Organization ${admin.orgId!}`;
+      orgDescription = (admin as any).orgDescription || '';
+      isPublic = (admin as any).isPublic !== false;
+    }
+
     // Hash password
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Create new client user
+    // Create new client user with multi-role format
     const userId = this.generateUserId();
     const user: User = {
       id: userId,
-      orgId: admin.orgId!,
-      role: 'client',
+      orgId: orgId, // Legacy field for compatibility
+      role: 'client', // Legacy field for compatibility
       email: email.trim(),
       passwordHash: passwordHash,
+      organizationAccess: {
+        [orgId]: {
+          role: 'client',
+          orgName: orgName,
+          orgDescription: orgDescription,
+          isPublic: isPublic,
+          joinedAt: new Date()
+        }
+      },
+      currentOrgId: orgId,
+      currentRole: 'client',
       createdAt: new Date(),
       updatedAt: new Date()
-    } as any;
+    };
 
     await this.usersCollection.insertOne(user);
 
@@ -1382,25 +1434,35 @@ export class AuthService {
       { $set: { pendingInvites: updatedInvites } }
     );
 
-    // Generate JWT token
-    const token = this.generateToken({
-      userId: user.id,
-      orgId: user.orgId!,
-      role: user.role!
-    } as JWTPayload);
+    // Generate multi-role JWT token
+    const token = this.generateMultiRoleToken(user, orgId);
+
+    // Build accessible organizations info
+    const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
+
+    if (user.organizationAccess) {
+      for (const [orgIdKey, access] of Object.entries(user.organizationAccess)) {
+        accessibleOrgs[orgIdKey] = {
+          role: access.role,
+          orgName: access.orgName || `Organization ${orgIdKey}`,
+          orgDescription: access.orgDescription,
+          isPublic: access.isPublic
+        };
+      }
+    }
 
     return {
       token,
       user: {
         id: user.id,
         orgId: user.orgId!,
+        currentOrgId: user.currentOrgId,
         role: user.role!,
+        currentRole: user.currentRole,
         email: user.email,
-        orgName: admin.orgName || `Organization ${admin.orgId!}`,
-        orgDescription: (admin as any).orgDescription || '',
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt
-      } as any
+        orgName: orgName,
+        accessibleOrgs: accessibleOrgs
+      }
     };
   }
 

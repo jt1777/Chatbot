@@ -31,6 +31,13 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
   const [userOrganizations, setUserOrganizations] = useState<Organization[]>([]);
   const [newOrgName, setNewOrgName] = useState<string>('');
   const [isCreatingOrg, setIsCreatingOrg] = useState<boolean>(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [myOrgsCurrentPage, setMyOrgsCurrentPage] = useState<number>(1);
+  const [myOrgsTotalPages, setMyOrgsTotalPages] = useState<number>(1);
+  const itemsPerPage = 5;
 
   const isGuest = user?.currentRole === 'guest';
 
@@ -57,10 +64,26 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
       const access = orgAccess as any;
       console.log('🔍 Processing org:', orgId, 'access:', access);
+      
+      // Fetch admin count for this organization
+      let adminCount = 0;
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/orgs/search?q=${encodeURIComponent(access.orgName || orgId)}`);
+        if (response.data && response.data.length > 0) {
+          // Find the matching organization in search results
+          const matchingOrg = response.data.find((org: any) => org.orgId === orgId);
+          if (matchingOrg) {
+            adminCount = matchingOrg.adminCount || 0;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching admin count for org:', orgId, error);
+      }
+      
       userOrgs.push({
         orgId: orgId,
         name: access.orgName || 'Unknown Organization',
-        adminCount: 0, // We don't have this info in accessibleOrgs
+        adminCount: adminCount,
         isPublic: access.isPublic || false,
         userRole: access.role
       });
@@ -73,6 +96,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
   const searchOrganizations = async (query: string) => {
     try {
       setIsSearching(true);
+      setCurrentPage(1); // Reset to first page on new search
       
       // If no query, show all public organizations
       if (!query.trim()) {
@@ -89,6 +113,64 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       setIsSearching(false);
     }
   };
+
+  // Calculate pagination
+  const calculatePagination = () => {
+    const totalItems = searchResults.length;
+    const totalPagesCount = Math.ceil(totalItems / itemsPerPage);
+    setTotalPages(totalPagesCount);
+    
+    // Reset to page 1 if current page is beyond total pages
+    if (currentPage > totalPagesCount && totalPagesCount > 0) {
+      setCurrentPage(1);
+    }
+  };
+
+  // Get current page items
+  const getCurrentPageItems = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return searchResults.slice(startIndex, endIndex);
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Update pagination when search results change
+  useEffect(() => {
+    calculatePagination();
+  }, [searchResults, currentPage]);
+
+  // Calculate pagination for My Organizations
+  const calculateMyOrgsPagination = () => {
+    const totalItems = userOrganizations.length;
+    const totalPagesCount = Math.ceil(totalItems / itemsPerPage);
+    setMyOrgsTotalPages(totalPagesCount);
+    
+    // Reset to page 1 if current page is beyond total pages
+    if (myOrgsCurrentPage > totalPagesCount && totalPagesCount > 0) {
+      setMyOrgsCurrentPage(1);
+    }
+  };
+
+  // Get current page items for My Organizations
+  const getMyOrgsCurrentPageItems = () => {
+    const startIndex = (myOrgsCurrentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return userOrganizations.slice(startIndex, endIndex);
+  };
+
+  // Handle page change for My Organizations
+  const handleMyOrgsPageChange = (page: number) => {
+    setMyOrgsCurrentPage(page);
+  };
+
+  // Update pagination when user organizations change
+  useEffect(() => {
+    calculateMyOrgsPagination();
+  }, [userOrganizations, myOrgsCurrentPage]);
 
   // Handle organization selection
   const handleSelectOrganization = async (orgId: string) => {
@@ -277,45 +359,128 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
                 Searching...
               </Text>
             ) : searchResults.length > 0 ? (
-              searchResults.map((org) => (
-                <TouchableOpacity
-                  key={org.orgId}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    padding: 16,
-                    borderRadius: 8,
-                    marginBottom: 8,
-                    borderWidth: 1,
-                    borderColor: '#E5E7EB',
-                  }}
-                  onPress={() => handleOrganizationClick(org.orgId)}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
-                        {org.name || 'Unnamed Organization'}
-                      </Text>
-                      <Text style={{ fontSize: 14, color: '#6B7280' }}>
-                        {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
-                      </Text>
-                    </View>
-                    {user?.accessibleOrgs && user.accessibleOrgs[org.orgId] && (
-                      <View
-                        style={{
-                          backgroundColor: user.accessibleOrgs[org.orgId].role === 'admin' ? '#DC2626' : '#2563EB',
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
-                          borderRadius: 12,
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: 'white' }}>
-                          {user.accessibleOrgs[org.orgId].role.toUpperCase()}
+              <>
+                {/* Results Info */}
+                <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, searchResults.length)} of {searchResults.length} organizations
+                </Text>
+                
+                {/* Paginated Results */}
+                {getCurrentPageItems().map((org) => (
+                  <TouchableOpacity
+                    key={org.orgId}
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      padding: 16,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: '#E5E7EB',
+                    }}
+                    onPress={() => handleOrganizationClick(org.orgId)}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#1F2937', marginBottom: 4 }}>
+                          {org.name || 'Unnamed Organization'}
+                        </Text>
+                        <Text style={{ fontSize: 14, color: '#6B7280' }}>
+                          {org.isPublic ? 'Public' : 'Private'} • {org.adminCount} admins
                         </Text>
                       </View>
-                    )}
+                      {user?.accessibleOrgs && user.accessibleOrgs[org.orgId] && (
+                        <View
+                          style={{
+                            backgroundColor: user.accessibleOrgs[org.orgId].role === 'admin' ? '#DC2626' : '#2563EB',
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 12,
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: 'white' }}>
+                            {user.accessibleOrgs[org.orgId].role.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    marginTop: 16,
+                    gap: 8
+                  }}>
+                    {/* Previous Button */}
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: currentPage === 1 ? '#D1D5DB' : '#3B82F6',
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 6,
+                      }}
+                      onPress={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <Text style={{ 
+                        color: currentPage === 1 ? '#6B7280' : 'white', 
+                        fontSize: 14, 
+                        fontWeight: '600' 
+                      }}>
+                        Previous
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {/* Page Numbers */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <TouchableOpacity
+                        key={page}
+                        style={{
+                          backgroundColor: currentPage === page ? '#1F2937' : '#F3F4F6',
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 6,
+                          minWidth: 40,
+                          alignItems: 'center',
+                        }}
+                        onPress={() => handlePageChange(page)}
+                      >
+                        <Text style={{ 
+                          color: currentPage === page ? 'white' : '#374151', 
+                          fontSize: 14, 
+                          fontWeight: '600' 
+                        }}>
+                          {page}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    
+                    {/* Next Button */}
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: currentPage === totalPages ? '#D1D5DB' : '#3B82F6',
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 6,
+                      }}
+                      onPress={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <Text style={{ 
+                        color: currentPage === totalPages ? '#6B7280' : 'white', 
+                        fontSize: 14, 
+                        fontWeight: '600' 
+                      }}>
+                        Next
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
-              ))
+                )}
+              </>
             ) : (
               <Text style={{ textAlign: 'center', color: '#6B7280', padding: 16 }}>
                 No organizations found
@@ -331,7 +496,14 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
           <Text style={{ fontSize: 18, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
             My Organizations
           </Text>
-          {userOrganizations.map((org) => (
+          
+          {/* Results Info */}
+          <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
+            Showing {((myOrgsCurrentPage - 1) * itemsPerPage) + 1}-{Math.min(myOrgsCurrentPage * itemsPerPage, userOrganizations.length)} of {userOrganizations.length} organizations
+          </Text>
+          
+          {/* Paginated Results */}
+          {getMyOrgsCurrentPageItems().map((org) => (
             <TouchableOpacity
               key={org.orgId}
               style={{
@@ -368,6 +540,81 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
               </View>
             </TouchableOpacity>
           ))}
+          
+          {/* Pagination Controls */}
+          {myOrgsTotalPages > 1 && (
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              marginTop: 16,
+              gap: 8
+            }}>
+              {/* Previous Button */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: myOrgsCurrentPage === 1 ? '#D1D5DB' : '#3B82F6',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 6,
+                }}
+                onPress={() => handleMyOrgsPageChange(myOrgsCurrentPage - 1)}
+                disabled={myOrgsCurrentPage === 1}
+              >
+                <Text style={{ 
+                  color: myOrgsCurrentPage === 1 ? '#6B7280' : 'white', 
+                  fontSize: 14, 
+                  fontWeight: '600' 
+                }}>
+                  Previous
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Page Numbers */}
+              {Array.from({ length: myOrgsTotalPages }, (_, i) => i + 1).map((page) => (
+                <TouchableOpacity
+                  key={page}
+                  style={{
+                    backgroundColor: myOrgsCurrentPage === page ? '#1F2937' : '#F3F4F6',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 6,
+                    minWidth: 40,
+                    alignItems: 'center',
+                  }}
+                  onPress={() => handleMyOrgsPageChange(page)}
+                >
+                  <Text style={{ 
+                    color: myOrgsCurrentPage === page ? 'white' : '#374151', 
+                    fontSize: 14, 
+                    fontWeight: '600' 
+                  }}>
+                    {page}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              
+              {/* Next Button */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: myOrgsCurrentPage === myOrgsTotalPages ? '#D1D5DB' : '#3B82F6',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 6,
+                }}
+                onPress={() => handleMyOrgsPageChange(myOrgsCurrentPage + 1)}
+                disabled={myOrgsCurrentPage === myOrgsTotalPages}
+              >
+                <Text style={{ 
+                  color: myOrgsCurrentPage === myOrgsTotalPages ? '#6B7280' : 'white', 
+                  fontSize: 14, 
+                  fontWeight: '600' 
+                }}>
+                  Next
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
@@ -412,7 +659,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
       {/* Help Text */}
       <View style={{ backgroundColor: '#F3F4F6', padding: 16, borderRadius: 8 }}>
         <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-          Only registered users may create organizations.
+          Create an account to form organizations.
         </Text>
       </View>
     </ScrollView>

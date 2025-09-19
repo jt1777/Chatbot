@@ -429,17 +429,23 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   };
 
   const handleClientInvitation = async () => {
-    if (!inviteEmail.trim()) {
+    console.log('handleClientInvitation called');
+    console.log('email:', email);
+    console.log('password:', password);
+    console.log('confirmPassword:', confirmPassword);
+    console.log('inviteCode:', inviteCode);
+    
+    if (!email.trim()) {
       Alert.alert('Error', 'Please enter an email address');
       return;
     }
 
-    if (!invitePassword.trim()) {
+    if (!password.trim()) {
       Alert.alert('Error', 'Please enter a password');
       return;
     }
 
-    if (invitePassword !== inviteConfirmPassword) {
+    if (password !== confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
@@ -451,12 +457,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
     try {
       setIsLoading(true);
+      console.log('Making API call to /api/auth/client/invitation');
+
       const response = await axios.post(`${API_BASE_URL}/api/auth/client/invitation`, {
-        email: inviteEmail.trim(),
-        password: invitePassword.trim(),
+        email: email.trim(),
+        password: password.trim(),
         inviteCode: inviteCode.trim()
       });
 
+      console.log('API response:', response.data);
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client invitation error:', error);
@@ -626,10 +635,14 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         {/* Single Login Form */}
         <View style={{ marginBottom: 30 }}>
           <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-            {isRegistering ? 'Create Account' : 'Sign In'}
+            {clientMode === 'invitation' ? 'Join with Invite Code' :
+             isRegistering ? 'Create Account' :
+             'Sign In'}
           </Text>
           <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 20 }}>
-            {isRegistering ? 'Create a new account to get started.' : 'Enter your email and password to access your organizations.'}
+            {clientMode === 'invitation' ? 'Join a private organization using an invite code.' :
+             isRegistering ? 'Create a new account to get started.' :
+             'Enter your email and password to access your organizations.'}
           </Text>
 
           {/* Email Input */}
@@ -704,92 +717,240 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             </View>
           )}
 
-          {/* Login/Register Button */}
+          {/* Invite Code Input - Only show in invitation mode */}
+          {clientMode === 'invitation' && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 8 }}>
+                Invite Code
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#F9FAFB',
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  color: '#1F2937',
+                }}
+                placeholder="Enter invite code"
+                value={inviteCode}
+                onChangeText={setInviteCode}
+                editable={!isProcessing}
+              />
+            </View>
+          )}
+
+          {/* Login/Register/Invitation Button */}
           <TouchableOpacity
             style={{
-              backgroundColor: (isRegistering ? (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword) : isLoginValid) ? '#3B82F6' : '#D1D5DB',
+              backgroundColor: (
+                clientMode === 'invitation' ?
+                  (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && inviteCode.trim() && !isProcessing) :
+                isRegistering ?
+                  (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && !isProcessing) :
+                  isLoginValid
+              ) ? '#3B82F6' : '#D1D5DB',
               paddingVertical: 12,
               borderRadius: 8,
               alignItems: 'center',
               marginBottom: 16,
             }}
-            onPress={isRegistering ? handleUnifiedRegister : handleAdminLogin}
-            disabled={isRegistering ? !(email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && !isProcessing) : !isLoginValid}
+            onPress={
+              clientMode === 'invitation' ? handleClientInvitation :
+              isRegistering ? handleUnifiedRegister :
+              handleAdminLogin
+            }
+            disabled={
+              clientMode === 'invitation' ?
+                !(email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && inviteCode.trim() && !isProcessing) :
+              isRegistering ?
+                !(email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && !isProcessing) :
+                !isLoginValid
+            }
           >
-            <Text style={{ 
-              color: (isRegistering ? (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword) : isLoginValid) ? 'white' : '#6B7280', 
-              fontSize: 16, 
-              fontWeight: '600' 
+            <Text style={{
+              color: (
+                clientMode === 'invitation' ?
+                  (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword && inviteCode.trim()) :
+                isRegistering ?
+                  (email.trim() && password.trim() && confirmPassword.trim() && password === confirmPassword) :
+                  isLoginValid
+              ) ? 'white' : '#6B7280',
+              fontSize: 16,
+              fontWeight: '600'
             }}>
-              {isProcessing ? (isRegistering ? 'Creating Account...' : 'Signing In...') : (isRegistering ? 'Create Account' : 'Sign In')}
+              {isProcessing ?
+                (clientMode === 'invitation' ? 'Joining...' :
+                 isRegistering ? 'Creating Account...' :
+                 'Signing In...') :
+                (clientMode === 'invitation' ? 'Join with Invite Code' :
+                 isRegistering ? 'Create Account' :
+                 'Sign In')
+              }
             </Text>
           </TouchableOpacity>
 
-          {/* Guest and Registration Options */}
-          <View style={{ marginTop: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#374151', marginBottom: 12 }}>
-              {isRegistering ? 'Already have an account?' : "Don't have an account?"}
+          {/* Alternative Options - Always show 3 other options */}
+          <View style={{ marginTop: 30, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 16 }}>
+              Or choose a different option:
             </Text>
-            
-            {/* Login as Guest Button - Only show in login mode */}
-            {!isRegistering && (
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#F3F4F6',
-                  padding: 16,
-                  borderRadius: 8,
-                  marginBottom: 12,
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: '#9CA3AF',
-                }}
-                onPress={handleClientGuest}
-                disabled={isProcessing}
-              >
-                <Text style={{ color: '#4B5563', fontSize: 16, fontWeight: '600' }}>
-                  {isProcessing ? 'Starting Guest Session...' : 'Login as Guest'}
-                </Text>
-              </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#FFFFFF',
-                padding: 16,
-                borderRadius: 8,
-                marginBottom: 12,
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: '#D1D5DB',
-              }}
-              onPress={() => {
-                setIsRegistering(!isRegistering);
-                // Clear form when switching modes
-                setEmail('');
-                setPassword('');
-                setConfirmPassword('');
-              }}
-            >
-              <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
-                {isRegistering ? 'Sign In Instead' : 'Create Account'}
-              </Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#FFFFFF',
-                padding: 16,
-                borderRadius: 8,
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: '#D1D5DB',
-              }}
-              onPress={() => setClientMode('invitation')}
-            >
-              <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
-                Join with Invite Code
-              </Text>
-            </TouchableOpacity>
+            {/* Show different buttons based on current mode */}
+            {clientMode === 'invitation' ? (
+              // When in invitation mode, show: Sign In, Guest, Create Account
+              <>
+                {/* Sign In Instead Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: 16,
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                  }}
+                  onPress={() => {
+                    setIsRegistering(false); // Switch to sign in mode
+                    setClientMode('guest'); // Reset to default mode
+                    // Clear form when switching modes
+                    setEmail('');
+                    setPassword('');
+                    setConfirmPassword('');
+                    setInviteCode('');
+                  }}
+                >
+                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                    Sign In Instead
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Login as Guest Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#F3F4F6',
+                    padding: 16,
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#9CA3AF',
+                  }}
+                  onPress={() => {
+                    handleClientGuest();
+                    setClientMode('guest'); // Reset to default mode
+                  }}
+                  disabled={isProcessing}
+                >
+                  <Text style={{ color: '#4B5563', fontSize: 16, fontWeight: '600' }}>
+                    {isProcessing ? 'Starting Guest Session...' : 'Sign in as Guest'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Create Account Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: 16,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                  }}
+                  onPress={() => {
+                    setIsRegistering(true); // Switch to registration mode
+                    setClientMode('guest'); // Reset to default mode
+                    // Clear form when switching modes
+                    setEmail('');
+                    setPassword('');
+                    setConfirmPassword('');
+                    setInviteCode('');
+                  }}
+                >
+                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                    Create Account
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // When in normal mode (sign in/register), show: Guest, Create Account, Join with Invite Code
+              <>
+                {/* Login as Guest Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#F3F4F6',
+                    padding: 16,
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#9CA3AF',
+                  }}
+                  onPress={() => {
+                    handleClientGuest();
+                    setClientMode('guest'); // Reset to default mode
+                  }}
+                  disabled={isProcessing}
+                >
+                  <Text style={{ color: '#4B5563', fontSize: 16, fontWeight: '600' }}>
+                    {isProcessing ? 'Starting Guest Session...' : 'Sign in as Guest'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Create Account / Sign In Instead Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: 16,
+                    borderRadius: 8,
+                    marginBottom: 12,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                  }}
+                  onPress={() => {
+                    setIsRegistering(!isRegistering);
+                    setClientMode('guest'); // Reset to default mode
+                    // Clear form when switching modes
+                    setEmail('');
+                    setPassword('');
+                    setConfirmPassword('');
+                    setInviteCode('');
+                  }}
+                >
+                  <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>
+                    {isRegistering ? 'Sign In Instead' : 'Create Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Join with Invite Code Button */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: 16,
+                    borderRadius: 8,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: '#D1D5DB',
+                  }}
+                  onPress={() => {
+                    setClientMode('invitation');
+                    setIsRegistering(true); // Invitation mode needs registration fields
+                    setInviteCode('');
+                  }}
+                >
+                  <Text style={{
+                    color: '#374151',
+                    fontSize: 16,
+                    fontWeight: '600'
+                  }}>
+                    Join with Invite Code
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 

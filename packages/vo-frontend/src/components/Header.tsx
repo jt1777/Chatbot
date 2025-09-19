@@ -75,6 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
       
       {/* Tab Navigation */}
       <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
+        {/* Search tab - First */}
         <TouchableOpacity
           style={{
             paddingHorizontal: 16,
@@ -90,6 +91,71 @@ export const Header: React.FC<HeaderProps> = ({
           </Text>
         </TouchableOpacity>
         
+        {/* Org Profile tab - Second */}
+        {/* Admin Profile tab */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 16,
+              backgroundColor: currentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              marginRight: 8,
+            }}
+            onPress={() => onTabChange('organizations')}
+          >
+            <Text style={{ color: 'white', fontWeight: currentTab === 'organizations' ? 'bold' : 'normal' }}>
+              Org Profile
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Client Profile tab */}
+        {isClient && (
+          <TouchableOpacity
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 16,
+              backgroundColor: clientCurrentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              marginRight: 8,
+              opacity: shouldDisableTabs ? 0.5 : 1,
+            }}
+            onPress={() => {
+              if (!shouldDisableTabs) {
+                onClientTabChange('organizations');
+              }
+            }}
+            disabled={shouldDisableTabs}
+          >
+            <Text style={{ 
+              color: shouldDisableTabs ? 'rgba(255,255,255,0.5)' : 'white', 
+              fontWeight: clientCurrentTab === 'organizations' ? 'bold' : 'normal' 
+            }}>
+              Org Profile
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Documents tab - Third for admins, Fourth for clients */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 16,
+              backgroundColor: currentTab === 'documents' ? 'rgba(255,255,255,0.2)' : 'transparent',
+              marginRight: 8,
+            }}
+            onPress={() => onTabChange('documents')}
+          >
+            <Text style={{ color: 'white', fontWeight: currentTab === 'documents' ? 'bold' : 'normal' }}>
+              Documents ({documentStats.count})
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Chat tab - Fourth for admins, Third for clients */}
         <TouchableOpacity
           style={{
             paddingHorizontal: 16,
@@ -113,70 +179,6 @@ export const Header: React.FC<HeaderProps> = ({
             Chat
           </Text>
         </TouchableOpacity>
-        
-        {/* Only show Documents tab for admins */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 16,
-              backgroundColor: currentTab === 'documents' ? 'rgba(255,255,255,0.2)' : 'transparent',
-              marginRight: 8,
-            }}
-            onPress={() => onTabChange('documents')}
-          >
-            <Text style={{ color: 'white', fontWeight: currentTab === 'documents' ? 'bold' : 'normal' }}>
-              Documents ({documentStats.count})
-            </Text>
-          </TouchableOpacity>
-        )}
-        
-        {/* Only show Invites tab for admins */}
-        
-        {/* Admin Profile tab */}
-        {isAdmin && (
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 16,
-            backgroundColor: currentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
-            marginRight: 8,
-          }}
-          onPress={() => onTabChange('organizations')}
-        >
-          <Text style={{ color: 'white', fontWeight: currentTab === 'organizations' ? 'bold' : 'normal' }}>
-            Org Profile
-          </Text>
-          </TouchableOpacity>
-        )}
-        
-        {/* Client Profile tab */}
-        {isClient && (
-          <TouchableOpacity
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 16,
-              backgroundColor: clientCurrentTab === 'organizations' ? 'rgba(255,255,255,0.2)' : 'transparent',
-              opacity: shouldDisableTabs ? 0.5 : 1,
-            }}
-            onPress={() => {
-              if (!shouldDisableTabs) {
-                onClientTabChange('organizations');
-              }
-            }}
-            disabled={shouldDisableTabs}
-          >
-            <Text style={{ 
-              color: shouldDisableTabs ? 'rgba(255,255,255,0.5)' : 'white', 
-              fontWeight: clientCurrentTab === 'organizations' ? 'bold' : 'normal' 
-            }}>
-              Org Profile
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );

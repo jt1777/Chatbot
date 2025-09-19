@@ -49,12 +49,16 @@ export const useOrganization = (token: string | null) => {
         }
       });
 
-      // Show success toast with invite code
+      // Show persistent success toast with invite code
       Toast.show({
         type: 'success',
         text1: 'Invite Created!',
         text2: `Invite code: ${response.data.inviteCode}`,
-        visibilityTime: 6000,
+        visibilityTime: 0, // 0 means persistent until manually closed
+        autoHide: false, // Don't auto-hide
+        props: {
+          inviteCode: response.data.inviteCode
+        }
       });
       
       setInviteEmail('');
@@ -91,12 +95,12 @@ export const useOrganization = (token: string | null) => {
       return;
     }
 
-    console.log('🔄 Loading organization info for user:', {
+    {/*console.log('🔄 Loading organization info for user:', {
       userId: user?.id,
       currentOrgId: user?.currentOrgId,
       orgId: user?.orgId,
       currentRole: user?.currentRole
-    });
+    });*/}
 
     try {
       const response = await axios.get(`${API_BASE_URL}/api/org/info`, {
@@ -106,11 +110,11 @@ export const useOrganization = (token: string | null) => {
         }
       });
       
-      console.log('🔄 Organization info response:', {
+      {/*console.log('🔄 Organization info response:', {
         name: response.data.name,
         description: response.data.description,
         isPublic: response.data.isPublic
-      });
+      });*/}
       
       setOrgDescription(response.data.description || '');
       setIsPublic(response.data.isPublic !== undefined ? response.data.isPublic : true);
@@ -159,8 +163,24 @@ export const useOrganization = (token: string | null) => {
         }
       });
       await loadOrganizationInfo();
+      
+      // Show success toast
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Organization description updated',
+        visibilityTime: 3000,
+      });
     } catch (error) {
       console.error('Error updating organization description:', error);
+      
+      // Show error toast
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to update organization description',
+        visibilityTime: 4000,
+      });
     } finally {
       setIsUpdatingDescription(false);
     }

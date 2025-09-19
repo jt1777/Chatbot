@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StatusBar } from 'react-native';
-import Toast from 'react-native-toast-message';
+import Toast, { BaseToast } from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/components/AuthScreen';
+import { InviteCodeToast } from './src/components/InviteCodeToast';
 import { OrganizationSelectionScreen } from './src/components/OrganizationSelectionScreen';
 import { Header } from './src/components/Header';
 import { ChatInterface } from './src/components/ChatInterface';
@@ -172,11 +173,11 @@ function MainApp() {
         <OrganizationSelectionScreen
           key={user.currentOrgId || user.email}
           onOrganizationSelected={() => {
-            // Switch to chat tab after joining organization
+            // Switch to organizations tab after joining/creating organization
             if (isAdmin) {
-              setCurrentTab('chat');
+              setCurrentTab('organizations');
             } else {
-              setClientCurrentTab('chat');
+              setClientCurrentTab('organizations');
             }
           }}
           onCreateOrganization={() => {
@@ -270,11 +271,22 @@ function MainApp() {
   );
 }
 
+const toastConfig = {
+  success: (props: any) => {
+    // Check if this is an invite code toast
+    if (props.props?.inviteCode) {
+      return <InviteCodeToast {...props} />;
+    }
+    // Default success toast
+    return <BaseToast {...props} />;
+  },
+};
+
 export default function App() {
   return (
     <AuthProvider>
       <MainApp />
-      <Toast />
+      <Toast config={toastConfig} />
     </AuthProvider>
   );
 }
