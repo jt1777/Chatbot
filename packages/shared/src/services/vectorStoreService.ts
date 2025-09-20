@@ -352,8 +352,10 @@ export class VectorStoreService {
       let result;
       if (orgId) {
         result = await collection.deleteMany({ 'metadata.orgId': orgId });
+        console.log(`✅ Cleared ${result.deletedCount} documents for org ${orgId}`);
       } else {
         result = await collection.deleteMany({});
+        console.log(`✅ Cleared ${result.deletedCount} documents from all orgs`);
       }
     } catch (error) {
       console.error('Error clearing documents:', error);

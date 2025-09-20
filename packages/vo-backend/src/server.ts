@@ -1044,11 +1044,19 @@ app.delete('/api/documents/clear', authenticateToken, requireOrgAdmin, async (re
     const user = (req as any).user; // Get user from auth middleware
     // Use currentOrgId for multi-role system, fallback to orgId for legacy
     const orgId = user.currentOrgId || user.orgId;
+    console.log(`🗑️ Clear all documents requested for org: ${orgId}`);
+    
     await ragService.initialize(); // Initialize RAG service for this organization
+    console.log(`🗑️ RAG service initialized, calling clearAllDocuments for org: ${orgId}`);
+    
+    // Clear both vector store and document tracker
     await ragService.clearAllDocuments(orgId);
+    await documentService.clearAllDocuments(orgId);
+    console.log(`✅ Successfully cleared all documents for org: ${orgId}`);
+    
     res.json({ message: 'All documents cleared successfully' });
   } catch (error: any) {
-    console.error('Clear documents error:', error);
+    console.error('❌ Clear documents error:', error);
     res.status(500).json({
       error: 'Failed to clear documents',
       details: error.message

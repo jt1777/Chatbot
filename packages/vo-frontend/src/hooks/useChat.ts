@@ -52,7 +52,7 @@ export const useChat = (token: string | null, userId: string | undefined) => {
 
       const botMessage: Message = {
         text: isNoResponseFromTrainingData 
-          ? "There is no appropriate reply to your message based on the training data. Please try again, add documents to the knowledge base, or switch to General mode (if available) to utilize my pre-training data to respond to your message."
+          ? "There is no appropriate reply to your message based on the training data. Please try again, add documents to the knowledge base if you are an administrator, or switch to General mode (if available) to utilize my pre-training data to respond to your message."
           : responseText,
         from: 'bot',
         timestamp: new Date(),

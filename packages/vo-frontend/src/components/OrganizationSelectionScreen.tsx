@@ -344,7 +344,7 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
           Welcome!
         </Text>
         <Text style={{ fontSize: 16, color: 'rgba(255, 255, 255, 0.8)', marginBottom: 24 }}>
-          {isGuest ? 'Guest User' : (user?.email || 'No email available')}
+          {(isGuest || user?.currentRole === 'guest' || user?.role === 'guest') ? 'Guest' : (user?.email || 'No email available')}
         </Text>
       </View>
 
