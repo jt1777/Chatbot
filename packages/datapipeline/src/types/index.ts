@@ -22,5 +22,5 @@ export interface PipelineOptions {
   clearExisting?: boolean;
   chunkSize?: number;
   chunkOverlap?: number;
-  collectionName?: string;
+  orgId: string; // Required for multi-tenancy
 }

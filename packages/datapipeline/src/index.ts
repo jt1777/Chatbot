@@ -7,22 +7,22 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Document, PipelineOptions } from './types';
 
-export async function runPipeline(options: PipelineOptions = {}): Promise<void> {
-  const { clearExisting = false, chunkSize = 1000, chunkOverlap = 200, collectionName = 'business_docs' } = options;
+export async function runPipeline(options: PipelineOptions): Promise<void> {
+  const { clearExisting = false, chunkSize = 1000, chunkOverlap = 200, orgId } = options;
   
   try {
     // Ensure environment variables are loaded
     dotenv.config({ path: '../.env' });
     
-    // Initialize VectorStoreService
+    // Initialize VectorStoreService with single collection
     const vectorStoreService = VectorStoreService.getInstance();
-    await vectorStoreService.initialize(collectionName);
-    
-    // Step 0: Clear existing data if requested
+    await vectorStoreService.initialize();
+
+    // Step 0: Clear existing data for this org if requested
     if (clearExisting) {
-      console.log('🗑️  Clearing existing knowledge base...');
-      await vectorStoreService.clearAllDocuments(collectionName);
-      console.log('✅ Existing knowledge base cleared');
+      console.log(`🗑️  Clearing existing knowledge base for org ${orgId}...`);
+      await vectorStoreService.clearAllDocuments(orgId);
+      console.log(`✅ Existing knowledge base cleared for org ${orgId}`);
     }
 
     // Step 1: Scrape website
@@ -46,7 +46,7 @@ export async function runPipeline(options: PipelineOptions = {}): Promise<void> 
       const webContent = await fs.readFile(webOutputPath, 'utf8');
       docs.push({
         pageContent: webContent,
-        metadata: { source: webOutputPath, type: 'web' }
+        metadata: { source: webOutputPath, type: 'web', orgId: orgId }
       });
     } catch (error) {
       console.log('No web content found, skipping...');
@@ -57,7 +57,7 @@ export async function runPipeline(options: PipelineOptions = {}): Promise<void> 
       const content = await fs.readFile(textFile, 'utf8');
       docs.push({
         pageContent: content,
-        metadata: { source: textFile, type: 'pdf' }
+        metadata: { source: textFile, type: 'pdf', orgId: orgId }
       });
     }
 
@@ -74,7 +74,7 @@ export async function runPipeline(options: PipelineOptions = {}): Promise<void> 
     });
 
     // Step 5: Add documents to vector store
-    await vectorStoreService.addDocuments(splitDocs);
+    await vectorStoreService.addDocuments(splitDocs, orgId);
     await vectorStoreService.close();
 
     console.log('Pipeline completed successfully');

@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import multer from 'multer';
-import { RAGService, DocumentService, SemanticDocumentService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest, UpdateOrgDescriptionRequest } from '@chatbot/shared';
+import { RAGService, DocumentService, SemanticDocumentService, VectorStoreService, ChatRequest, ChatResponse, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, CreateInviteRequest, JoinOrganizationRequest, UpdateOrgDescriptionRequest } from '@chatbot/shared';
 
 // Local type definition for organization switching
 interface SwitchOrganizationRequest {
@@ -32,6 +32,7 @@ const conversationHistory = new Map<string, string[]>();
 const ragService = new RAGService();
 const documentService = new DocumentService();
 const semanticDocumentService = new SemanticDocumentService();
+const vectorStoreService = VectorStoreService.getInstance();
 const authServiceInstance = new AuthService();
 
 // Configure multer for file uploads
@@ -55,6 +56,7 @@ app.use(express.json());
 // Initialize services (non-blocking, allows guest access even if database is temporarily unavailable)
 documentService.initialize().catch(console.error);
 authServiceInstance.initialize().catch(console.error);
+vectorStoreService.initialize().catch(console.error);
 
 app.get('/', (req, res) => {
   res.send('Backend running');
@@ -660,7 +662,7 @@ app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
         // console.log('🔍 RAG: Parsed search limit:', searchLimit);
         
         // Initialize RAG service for this organization
-        await ragService.initialize(user.orgId);
+        await ragService.initialize();
         
         // Use semantic search if enabled
         const useSemanticSearch = process.env.USE_SEMANTIC_SEARCH === 'true';
@@ -864,7 +866,7 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
     }
 
     // Initialize RAG service for this organization and add all documents
-    await ragService.initialize(user.orgId);
+    await ragService.initialize();
     await ragService.addDocuments(allDocuments, user.orgId);
 
     res.json({
@@ -903,7 +905,7 @@ app.post('/api/documents/scrape', authenticateToken, requireOrgAdmin, async (req
     }));
 
     // Initialize RAG service for this organization and add documents
-    await ragService.initialize(user.orgId);
+    await ragService.initialize();
     await ragService.addDocuments(documentsWithOrgId, user.orgId);
     
     // Track the document
@@ -1023,7 +1025,7 @@ app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (r
 app.delete('/api/documents/clear', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const user = (req as any).user; // Get user from auth middleware
-    await ragService.initialize(user.orgId); // Initialize RAG service for this organization
+    await ragService.initialize(); // Initialize RAG service for this organization
     await ragService.clearAllDocuments(user.orgId);
     res.json({ message: 'All documents cleared successfully' });
   } catch (error: any) {

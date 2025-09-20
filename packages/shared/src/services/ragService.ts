@@ -8,9 +8,9 @@ export class RAGService {
     this.vectorStoreService = VectorStoreService.getInstance();
   }
 
-  async initialize(orgId: string): Promise<void> {
-    await this.vectorStoreService.initialize(orgId);
-    console.log(`RAG Service initialized successfully for org ${orgId}`);
+  async initialize(): Promise<void> {
+    await this.vectorStoreService.initialize();
+    console.log('RAG Service initialized successfully with single collection');
   }
 
   async searchSimilarDocuments(query: string, orgId: string, limit: number = 5): Promise<Document[]> {
@@ -21,8 +21,8 @@ export class RAGService {
     return await this.vectorStoreService.addDocuments(documents, orgId);
   }
 
-  async getDocumentCount(): Promise<number> {
-    return await this.vectorStoreService.getDocumentCount();
+  async getDocumentCount(orgId?: string): Promise<number> {
+    return await this.vectorStoreService.getDocumentCount(orgId);
   }
 
   async clearAllDocuments(orgId: string): Promise<void> {

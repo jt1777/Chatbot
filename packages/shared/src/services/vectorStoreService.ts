@@ -20,6 +20,9 @@ export class VectorStoreService {
   private client: MongoClient | null = null;
   private embeddings: HuggingFaceTransformersEmbeddings;
   private isInitialized: boolean = false;
+  private isIndexCreated: boolean = false;
+  private readonly COLLECTION_NAME = 'vectors';
+  private readonly INDEX_NAME = 'vector_index';
 
   private constructor() {
     this.embeddings = new HuggingFaceTransformersEmbeddings({
@@ -35,7 +38,7 @@ export class VectorStoreService {
     return VectorStoreService.instance;
   }
 
-  async initialize(orgId: string, collectionName: string = 'business_docs'): Promise<void> {
+  async initialize(orgId?: string): Promise<void> {
     if (this.isInitialized) {
       console.log('VectorStoreService already initialized');
       return;
@@ -47,18 +50,31 @@ export class VectorStoreService {
         throw new Error('MONGODB_URI environment variable is required');
       }
 
-      // Create organization-specific collection name
-      const orgCollectionName = `${collectionName}_${orgId}`;
-      console.log(`🔧 Initializing vector store for org ${orgId} with collection: ${orgCollectionName}`);
+      console.log(`🔧 Initializing vector store with single collection: ${this.COLLECTION_NAME}`);
 
       this.client = new MongoClient(mongoUri);
       await this.client.connect();
       const db = this.client.db();
-      const collection = db.collection(orgCollectionName);
 
+      // Ensure the vectors collection exists
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      // Check if collection exists, create if not
+      const collections = await db.listCollections({ name: this.COLLECTION_NAME }).toArray();
+      if (collections.length === 0) {
+        console.log(`🔧 Creating collection: ${this.COLLECTION_NAME}`);
+        await db.createCollection(this.COLLECTION_NAME);
+      } else {
+        console.log(`🔧 Collection ${this.COLLECTION_NAME} already exists`);
+      }
+
+      // Check if vector index exists, create if not
+      await this.ensureVectorIndex(collection);
+
+      // Initialize the vector store
       this.vectorStore = new MongoDBAtlasVectorSearch(this.embeddings, {
         collection: collection,
-        indexName: 'vector_index',
+        indexName: this.INDEX_NAME,
         textKey: 'text',
         embeddingKey: 'embedding',
       });
@@ -66,12 +82,75 @@ export class VectorStoreService {
       this.isInitialized = true;
       console.log('VectorStoreService initialized successfully');
       console.log('🔧 MongoDB collection:', collection.collectionName);
-      console.log('🔧 Vector index name: vector_index');
+      console.log('🔧 Vector index name:', this.INDEX_NAME);
       console.log('🔧 Embedding field: embedding');
     } catch (error) {
       console.error('Failed to initialize VectorStoreService:', error);
       throw error;
     }
+  }
+
+  private async ensureVectorIndex(collection: any): Promise<void> {
+    try {
+      // Check if vector index already exists
+      const searchIndexes = await collection.listSearchIndexes().toArray();
+      const existingIndex = searchIndexes.find((index: any) => index.name === this.INDEX_NAME);
+
+      if (existingIndex) {
+        console.log(`🔧 Vector index '${this.INDEX_NAME}' already exists`);
+        this.isIndexCreated = true;
+        return;
+      }
+
+      console.log(`🔧 Creating vector index '${this.INDEX_NAME}'...`);
+
+      // Create the vector search index
+      const indexDefinition = {
+        name: this.INDEX_NAME,
+        type: 'vectorSearch',
+        fields: [
+          {
+            numDimensions: 384, // all-MiniLM-L6-v2 produces 384-dimensional embeddings
+            path: 'embedding',
+            similarity: 'cosine',
+            type: 'vector'
+          }
+        ]
+      };
+
+      await collection.createSearchIndex(indexDefinition);
+
+      // Wait for index to be ready (poll for status)
+      await this.waitForIndexReady(collection);
+
+      this.isIndexCreated = true;
+      console.log(`✅ Vector index '${this.INDEX_NAME}' created successfully`);
+    } catch (error) {
+      console.error('❌ Failed to create vector index:', error);
+      throw error;
+    }
+  }
+
+  private async waitForIndexReady(collection: any, maxRetries: number = 30): Promise<void> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const indexes = await collection.listSearchIndexes().toArray();
+        const index = indexes.find((idx: any) => idx.name === this.INDEX_NAME);
+
+        if (index && index.status === 'READY') {
+          console.log(`🔧 Vector index '${this.INDEX_NAME}' is ready`);
+          return;
+        }
+
+        console.log(`🔧 Waiting for vector index '${this.INDEX_NAME}' to be ready... (attempt ${i + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      } catch (error) {
+        console.error(`❌ Error checking index status (attempt ${i + 1}):`, error);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    throw new Error(`Vector index '${this.INDEX_NAME}' failed to become ready within ${maxRetries * 2} seconds`);
   }
 
   async searchSimilarDocuments(query: string, orgId: string, limit: number = 5): Promise<Document[]> {
@@ -85,25 +164,52 @@ export class VectorStoreService {
       
       const similarityThreshold = parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7');
       console.log('🎯 Similarity threshold:', similarityThreshold);
-      
+      console.log('🏢 Filtering results for orgId:', orgId);
+
+      // Use the collection directly to filter by orgId before similarity search
+      const db = this.client!.db();
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      // First, get all documents for this orgId
+      const orgDocuments = await collection.find({ 'metadata.orgId': orgId }).toArray();
+      console.log(`📊 Found ${orgDocuments.length} documents for org ${orgId}`);
+
+      if (orgDocuments.length === 0) {
+        console.log(`ℹ️ No documents found for org ${orgId}`);
+        return [];
+      }
+
+      // Perform similarity search with pre-filter
       const resultsWithScores = await this.vectorStore.similaritySearchWithScore(query, limit);
       console.log('📊 Vector search: Raw results with scores:', resultsWithScores.length);
-      
-      resultsWithScores.forEach((result, index) => {
-        const [doc, score] = result;
-        console.log(`📄 Result ${index + 1}: Score = ${score.toFixed(3)}, Preview = "${doc.pageContent.substring(0, 100)}..."`);
+
+      // Filter results to only include documents from this orgId
+      const orgFilteredResults = resultsWithScores.filter(([doc, score]) => {
+        const docOrgId = doc.metadata.orgId;
+        const isFromOrg = docOrgId === orgId;
+        if (!isFromOrg) {
+          console.log(`❌ Filtered out result from different org: ${docOrgId}`);
+        }
+        return isFromOrg;
       });
-      
-      const filteredResults = resultsWithScores.filter(([doc, score]) => {
+
+      console.log(`📊 Org-filtered results: ${orgFilteredResults.length}/${resultsWithScores.length} documents from org ${orgId}`);
+
+      orgFilteredResults.forEach((result, index) => {
+        const [doc, score] = result;
+        console.log(`📄 Result ${index + 1}: Score = ${score.toFixed(3)}, Org = ${doc.metadata.orgId}, Preview = "${doc.pageContent.substring(0, 100)}..."`);
+      });
+
+      const filteredResults = orgFilteredResults.filter(([doc, score]) => {
         const isRelevant = score >= similarityThreshold;
         if (!isRelevant) {
           console.log(`❌ Filtered out result with score ${score.toFixed(3)} (below threshold ${similarityThreshold})`);
         }
         return isRelevant;
       });
-      
-      console.log(`✅ Filtered results: ${filteredResults.length}/${resultsWithScores.length} documents above threshold`);
-      
+
+      console.log(`✅ Final filtered results: ${filteredResults.length}/${orgFilteredResults.length} documents above threshold for org ${orgId}`);
+
       return filteredResults.map(([doc, score]) => ({
         pageContent: doc.pageContent,
         metadata: {
@@ -142,16 +248,24 @@ export class VectorStoreService {
     }
   }
 
-  async getDocumentCount(): Promise<number> {
+  async getDocumentCount(orgId?: string): Promise<number> {
     if (!this.isInitialized || !this.client) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
       const db = this.client.db();
-      const collection = db.collection('business_docs');
-      const count = await collection.countDocuments();
-      
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      let count: number;
+      if (orgId) {
+        count = await collection.countDocuments({ 'metadata.orgId': orgId });
+        console.log(`📊 Document count for org ${orgId}: ${count}`);
+      } else {
+        count = await collection.countDocuments();
+        console.log(`📊 Total document count: ${count}`);
+      }
+
       // Debug: Check document structure
       const sampleDoc = await collection.findOne({});
       if (sampleDoc) {
@@ -159,8 +273,9 @@ export class VectorStoreService {
         console.log('🔍 Has embedding field:', 'embedding' in sampleDoc);
         console.log('🔍 Has text field:', 'text' in sampleDoc);
         console.log('🔍 Has pageContent field:', 'pageContent' in sampleDoc);
+        console.log('🔍 Has orgId in metadata:', sampleDoc.metadata?.orgId);
       }
-      
+
       return count;
     } catch (error) {
       console.error('Error getting document count:', error);
@@ -168,32 +283,46 @@ export class VectorStoreService {
     }
   }
 
-  async clearAllDocuments(collectionName: string = 'business_docs'): Promise<void> {
+  async clearAllDocuments(orgId?: string): Promise<void> {
     if (!this.isInitialized || !this.client) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
       const db = this.client.db();
-      await db.collection(collectionName).deleteMany({});
-      console.log(`All documents cleared from collection ${collectionName}`);
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      let result;
+      if (orgId) {
+        result = await collection.deleteMany({ 'metadata.orgId': orgId });
+        console.log(`Cleared ${result.deletedCount} documents for org ${orgId} from collection ${this.COLLECTION_NAME}`);
+      } else {
+        result = await collection.deleteMany({});
+        console.log(`Cleared all ${result.deletedCount} documents from collection ${this.COLLECTION_NAME}`);
+      }
     } catch (error) {
       console.error('Error clearing documents:', error);
       throw error;
     }
   }
 
-  async deleteDocumentsBySource(source: string, collectionName: string = 'business_docs'): Promise<number> {
+  async deleteDocumentsBySource(source: string, orgId?: string): Promise<number> {
     if (!this.isInitialized || !this.client) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
       const db = this.client.db();
-      const result = await db.collection(collectionName).deleteMany({ 
-        'metadata.source': source 
-      });
-      console.log(`Deleted ${result.deletedCount} documents with source: ${source}`);
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      let query: any = { 'metadata.source': source };
+      if (orgId) {
+        query['metadata.orgId'] = orgId;
+      }
+
+      const result = await collection.deleteMany(query);
+      const context = orgId ? ` for org ${orgId}` : '';
+      console.log(`Deleted ${result.deletedCount} documents with source: ${source}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by source:', error);
@@ -201,28 +330,31 @@ export class VectorStoreService {
     }
   }
 
-  async deleteDocumentsBySources(sources: string[], collectionName: string = 'business_docs'): Promise<number> {
+  async deleteDocumentsBySources(sources: string[], orgId?: string): Promise<number> {
     if (!this.isInitialized || !this.client) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
       const db = this.client.db();
+      const collection = db.collection(this.COLLECTION_NAME);
       console.log(`🔍 VectorStore: Deleting documents with sources:`, sources);
-      
+
+      let query: any = { 'metadata.source': { $in: sources } };
+      if (orgId) {
+        query['metadata.orgId'] = orgId;
+      }
+
       // First, let's check what documents exist with these sources
-      const existingDocs = await db.collection(collectionName).find({ 
-        'metadata.source': { $in: sources }
-      }).toArray();
+      const existingDocs = await collection.find(query).toArray();
       console.log(`🔍 VectorStore: Found ${existingDocs.length} existing documents to delete`);
       existingDocs.forEach(doc => {
-        console.log(`  - Source: "${doc.metadata?.source}", Type: ${doc.metadata?.type}`);
+        console.log(`  - Source: "${doc.metadata?.source}", Type: ${doc.metadata?.type}, Org: ${doc.metadata?.orgId}`);
       });
-      
-      const result = await db.collection(collectionName).deleteMany({ 
-        'metadata.source': { $in: sources }
-      });
-      console.log(`✅ VectorStore: Deleted ${result.deletedCount} documents with sources: ${sources.join(', ')}`);
+
+      const result = await collection.deleteMany(query);
+      const context = orgId ? ` for org ${orgId}` : '';
+      console.log(`✅ VectorStore: Deleted ${result.deletedCount} documents with sources: ${sources.join(', ')}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by sources:', error);
@@ -230,17 +362,23 @@ export class VectorStoreService {
     }
   }
 
-  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf', collectionName: string = 'business_docs'): Promise<number> {
+  async deleteDocumentsByType(type: 'upload' | 'web' | 'pdf', orgId?: string): Promise<number> {
     if (!this.isInitialized || !this.client) {
       throw new Error('VectorStoreService not initialized. Call initialize() first.');
     }
 
     try {
       const db = this.client.db();
-      const result = await db.collection(collectionName).deleteMany({ 
-        'metadata.type': type 
-      });
-      console.log(`Deleted ${result.deletedCount} documents with type: ${type}`);
+      const collection = db.collection(this.COLLECTION_NAME);
+
+      let query: any = { 'metadata.type': type };
+      if (orgId) {
+        query['metadata.orgId'] = orgId;
+      }
+
+      const result = await collection.deleteMany(query);
+      const context = orgId ? ` for org ${orgId}` : '';
+      console.log(`Deleted ${result.deletedCount} documents with type: ${type}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by type:', error);
