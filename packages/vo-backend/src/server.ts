@@ -56,7 +56,10 @@ app.use(express.json());
 // Initialize services (non-blocking, allows guest access even if database is temporarily unavailable)
 documentService.initialize().catch(console.error);
 authServiceInstance.initialize().catch(console.error);
-vectorStoreService.initialize().catch(console.error);
+
+// Reset VectorStoreService singleton to ensure fresh initialization on server start
+VectorStoreService.resetInstance();
+// VectorStoreService is now initialized by RAG service when needed
 
 app.get('/', (req, res) => {
   res.send('Backend running');
@@ -661,16 +664,19 @@ app.post('/api/chat', authenticateToken, requireUser, async (req, res) => {
         const searchLimit = parseInt(process.env.RAG_SEARCH_LIMIT || '10', 10);
         // console.log('🔍 RAG: Parsed search limit:', searchLimit);
         
-        // Initialize RAG service for this organization
+        // Initialize RAG service (now handles VectorStoreService internally)
         await ragService.initialize();
         
         // Use semantic search if enabled
         const useSemanticSearch = process.env.USE_SEMANTIC_SEARCH === 'true';
         // console.log('🧠 RAG: Using semantic search:', useSemanticSearch);
         
+        // Use currentOrgId for multi-role system, fallback to orgId for legacy
+        const orgId = user.currentOrgId || user.orgId;
+        
         const relevantDocs = useSemanticSearch 
-          ? await semanticDocumentService.semanticSearch(message, user.orgId, searchLimit)
-          : await ragService.searchSimilarDocuments(message, user.orgId, searchLimit);
+          ? await semanticDocumentService.semanticSearch(message, orgId, searchLimit)
+          : await ragService.searchSimilarDocuments(message, orgId, searchLimit);
         // console.log('📄 RAG: Found', relevantDocs.length, 'relevant documents');
         // console.log('📄 RAG: Search limit was', searchLimit);
         
@@ -830,16 +836,19 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
     let allDocuments: any[] = [];
     let processedFiles: string[] = [];
 
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+
     // Process each file
     for (const file of files) {
       const { originalname, mimetype, buffer } = file;
     let documents;
 
     if (mimetype === 'application/pdf') {
-        documents = await documentService.processPDFBuffer(buffer, originalname, user.orgId);
+        documents = await documentService.processPDFBuffer(buffer, originalname, orgId);
     } else if (mimetype === 'text/plain') {
       const content = buffer.toString('utf-8');
-        documents = await documentService.processTextFile(content, originalname, user.orgId);
+        documents = await documentService.processTextFile(content, originalname, orgId);
     } else {
         console.warn(`Skipping unsupported file type: ${mimetype} for file: ${originalname}`);
         continue;
@@ -850,7 +859,7 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
         ...doc,
         metadata: {
           ...doc.metadata,
-          orgId: user.orgId
+          orgId: orgId
         }
       }));
 
@@ -858,7 +867,7 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
       processedFiles.push(originalname);
     
     // Track the document
-      await documentService.trackDocument(originalname, 'upload', documents.length, user.orgId);
+      await documentService.trackDocument(originalname, 'upload', documents.length, orgId);
     }
 
     if (allDocuments.length === 0) {
@@ -866,8 +875,10 @@ app.post('/api/documents/upload', authenticateToken, requireOrgAdmin, upload.arr
     }
 
     // Initialize RAG service for this organization and add all documents
+    console.log(`🔍 Upload: About to add ${allDocuments.length} documents to vector store for org ${orgId}`);
     await ragService.initialize();
-    await ragService.addDocuments(allDocuments, user.orgId);
+    await ragService.addDocuments(allDocuments, orgId);
+    console.log(`✅ Upload: Successfully added documents to vector store`);
 
     res.json({
       message: 'Files uploaded and processed successfully',
@@ -893,23 +904,26 @@ app.post('/api/documents/scrape', authenticateToken, requireOrgAdmin, async (req
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const documents = await documentService.scrapeWebsite(url, user.orgId);
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+
+    const documents = await documentService.scrapeWebsite(url, orgId);
     
     // Add organization context to documents
     const documentsWithOrgId = documents.map(doc => ({
       ...doc,
       metadata: {
         ...doc.metadata,
-        orgId: user.orgId
+        orgId: orgId
       }
     }));
 
     // Initialize RAG service for this organization and add documents
     await ragService.initialize();
-    await ragService.addDocuments(documentsWithOrgId, user.orgId);
+    await ragService.addDocuments(documentsWithOrgId, orgId);
     
     // Track the document
-    await documentService.trackDocument(url, 'web', documents.length, user.orgId);
+    await documentService.trackDocument(url, 'web', documents.length, orgId);
 
     res.json({
       message: 'Website scraped and processed successfully',
@@ -978,7 +992,9 @@ app.post('/api/config/rag', authenticateToken, requireOrgAdmin, (req, res) => {
 app.get('/api/documents/stats', authenticateToken, requireUser, async (req, res) => {
   try {
     const user = (req as any).user; // Get user from auth middleware
-    const stats = await documentService.getDocumentStats(user.orgId);
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
+    const stats = await documentService.getDocumentStats(orgId);
     res.json(stats);
   } catch (error: any) {
     console.error('Stats error:', error);
@@ -1001,7 +1017,8 @@ app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (r
     // console.log(`🗑️ Delete request received:`, { documentIds, count: documentIds.length });
     // console.log(`🗑️ Document IDs types:`, documentIds.map(id => ({ id, type: typeof id })));
     
-    // Delete documents by their source names (documentIds are actually source names)
+    // Initialize RAG service and delete documents by their source names
+    await ragService.initialize();
     const deletedCount = await documentService.deleteDocumentsBySources(documentIds);
     
     // console.log(`✅ Deleted ${deletedCount} document chunks for sources: ${documentIds.join(', ')}`);
@@ -1025,8 +1042,10 @@ app.delete('/api/documents/delete', authenticateToken, requireOrgAdmin, async (r
 app.delete('/api/documents/clear', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
     const user = (req as any).user; // Get user from auth middleware
+    // Use currentOrgId for multi-role system, fallback to orgId for legacy
+    const orgId = user.currentOrgId || user.orgId;
     await ragService.initialize(); // Initialize RAG service for this organization
-    await ragService.clearAllDocuments(user.orgId);
+    await ragService.clearAllDocuments(orgId);
     res.json({ message: 'All documents cleared successfully' });
   } catch (error: any) {
     console.error('Clear documents error:', error);

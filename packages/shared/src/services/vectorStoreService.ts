@@ -38,6 +38,14 @@ export class VectorStoreService {
     return VectorStoreService.instance;
   }
 
+  // Reset singleton instance (useful for testing or server restarts)
+  public static resetInstance(): void {
+    if (VectorStoreService.instance) {
+      VectorStoreService.instance.close();
+    }
+    VectorStoreService.instance = new VectorStoreService();
+  }
+
   async initialize(orgId?: string): Promise<void> {
     if (this.isInitialized) {
       console.log('VectorStoreService already initialized');
@@ -54,7 +62,7 @@ export class VectorStoreService {
 
       this.client = new MongoClient(mongoUri);
       await this.client.connect();
-      const db = this.client.db();
+      const db = this.client.db('test');
 
       // Ensure the vectors collection exists
       const collection = db.collection(this.COLLECTION_NAME);
@@ -71,7 +79,7 @@ export class VectorStoreService {
       // Check if vector index exists, create if not
       await this.ensureVectorIndex(collection);
 
-      // Initialize the vector store
+      // Initialize the vector store with explicit database reference
       this.vectorStore = new MongoDBAtlasVectorSearch(this.embeddings, {
         collection: collection,
         indexName: this.INDEX_NAME,
@@ -104,18 +112,20 @@ export class VectorStoreService {
 
       console.log(`🔧 Creating vector index '${this.INDEX_NAME}'...`);
 
-      // Create the vector search index
+      // Create the vector search index - correct MongoDB Atlas format
       const indexDefinition = {
         name: this.INDEX_NAME,
         type: 'vectorSearch',
-        fields: [
-          {
-            numDimensions: 384, // all-MiniLM-L6-v2 produces 384-dimensional embeddings
-            path: 'embedding',
-            similarity: 'cosine',
-            type: 'vector'
-          }
-        ]
+        definition: {
+          fields: [
+            {
+              type: 'vector',
+              path: 'embedding',
+              numDimensions: 384, // all-MiniLM-L6-v2 produces 384-dimensional embeddings
+              similarity: 'cosine'
+            }
+          ]
+        }
       };
 
       await collection.createSearchIndex(indexDefinition);
@@ -159,56 +169,68 @@ export class VectorStoreService {
     }
 
     try {
-      console.log('🔍 Vector search: Querying for:', query);
-      console.log('🔍 Vector search: Limit:', limit);
-      
       const similarityThreshold = parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7');
-      console.log('🎯 Similarity threshold:', similarityThreshold);
-      console.log('🏢 Filtering results for orgId:', orgId);
 
       // Use the collection directly to filter by orgId before similarity search
-      const db = this.client!.db();
+      const db = this.client!.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
 
       // First, get all documents for this orgId
       const orgDocuments = await collection.find({ 'metadata.orgId': orgId }).toArray();
       console.log(`📊 Found ${orgDocuments.length} documents for org ${orgId}`);
+      
+      // Debug: Check what's actually in the collection
+      const allDocs = await collection.find({}).limit(3).toArray();
+      console.log(`🔍 Debug: Found ${allDocs.length} total documents in vectors collection`);
+      if (allDocs.length > 0) {
+        console.log(`🔍 Debug: Sample document metadata:`, allDocs[0].metadata);
+        console.log(`🔍 Debug: Sample document orgId:`, allDocs[0].metadata?.orgId);
+      }
 
       if (orgDocuments.length === 0) {
         console.log(`ℹ️ No documents found for org ${orgId}`);
         return [];
       }
 
-      // Perform similarity search with pre-filter
-      const resultsWithScores = await this.vectorStore.similaritySearchWithScore(query, limit);
-      console.log('📊 Vector search: Raw results with scores:', resultsWithScores.length);
-
-      // Filter results to only include documents from this orgId
-      const orgFilteredResults = resultsWithScores.filter(([doc, score]) => {
-        const docOrgId = doc.metadata.orgId;
-        const isFromOrg = docOrgId === orgId;
-        if (!isFromOrg) {
-          console.log(`❌ Filtered out result from different org: ${docOrgId}`);
+      // Perform similarity search using direct MongoDB aggregation
+      const queryEmbedding = await this.embeddings.embedQuery(query);
+      
+      const pipeline = [
+        {
+          $vectorSearch: {
+            index: this.INDEX_NAME,
+            path: 'embedding',
+            queryVector: queryEmbedding,
+            numCandidates: limit * 10, // Get more candidates for better results
+            limit: limit
+          }
+        },
+        {
+          $match: {
+            'metadata.orgId': orgId
+          }
+        },
+        {
+          $addFields: {
+            score: { $meta: 'vectorSearchScore' }
+          }
         }
-        return isFromOrg;
+      ];
+
+      const searchResults = await collection.aggregate(pipeline).toArray();
+      
+      // Convert to the expected format
+      const resultsWithScores = searchResults.map(doc => [
+        {
+          pageContent: doc.text,
+          metadata: doc.metadata
+        },
+        doc.score
+      ]);
+
+      const filteredResults = resultsWithScores.filter(([doc, score]) => {
+        return score >= similarityThreshold;
       });
-
-      console.log(`📊 Org-filtered results: ${orgFilteredResults.length}/${resultsWithScores.length} documents from org ${orgId}`);
-
-      orgFilteredResults.forEach((result, index) => {
-        const [doc, score] = result;
-        console.log(`📄 Result ${index + 1}: Score = ${score.toFixed(3)}, Org = ${doc.metadata.orgId}, Preview = "${doc.pageContent.substring(0, 100)}..."`);
-      });
-
-      const filteredResults = orgFilteredResults.filter(([doc, score]) => {
-        const isRelevant = score >= similarityThreshold;
-        if (!isRelevant) {
-          console.log(`❌ Filtered out result with score ${score.toFixed(3)} (below threshold ${similarityThreshold})`);
-        }
-        return isRelevant;
-      });
-
-      console.log(`✅ Final filtered results: ${filteredResults.length}/${orgFilteredResults.length} documents above threshold for org ${orgId}`);
 
       return filteredResults.map(([doc, score]) => ({
         pageContent: doc.pageContent,
@@ -231,19 +253,66 @@ export class VectorStoreService {
     }
 
     try {
-      // Ensure all documents have the organization ID in metadata
+      console.log(`🔍 VectorStore: Processing ${documents.length} documents for org ${orgId}`);
+      
+      // Ensure all documents have the organization ID in metadata and convert pageContent to text
       const documentsWithOrgId = documents.map(doc => ({
         ...doc,
+        text: doc.pageContent, // Convert pageContent to text field for MongoDBAtlasVectorSearch
         metadata: {
           ...doc.metadata,
           orgId: orgId
         }
       }));
 
-      await this.vectorStore.addDocuments(documentsWithOrgId);
-      console.log(`Added ${documents.length} documents to vector store for org ${orgId}`);
+      console.log(`🔍 VectorStore: Sample document metadata:`, documentsWithOrgId[0]?.metadata);
+
+      try {
+        // Use direct MongoDB collection instead of MongoDBAtlasVectorSearch wrapper
+        const db = this.client!.db('test');
+        const collection = db.collection(this.COLLECTION_NAME);
+        
+        // Generate embeddings for each document
+        const embeddings = await this.embeddings.embedDocuments(
+          documentsWithOrgId.map(doc => doc.text)
+        );
+        
+        // Insert documents with embeddings directly
+        const documentsToInsert = documentsWithOrgId.map((doc, index) => ({
+          text: doc.text,
+          embedding: embeddings[index],
+          metadata: doc.metadata
+        }));
+        
+        await collection.insertMany(documentsToInsert);
+        console.log(`✅ VectorStore: Successfully added ${documents.length} documents to vector store for org ${orgId}`);
+      } catch (addError) {
+        console.error(`❌ VectorStore: Error in addDocuments call:`, addError);
+        throw addError;
+      }
+      
+      // Verify the documents were actually stored
+      const count = await this.getDocumentCount(orgId);
+      console.log(`🔍 VectorStore: Document count after adding: ${count}`);
+      
+      // Direct MongoDB check to see what's actually in the collection
+      if (count === 0) {
+        console.log(`🔍 VectorStore: Checking what's actually in the vectors collection...`);
+        const db = this.client!.db('test');
+        const collection = db.collection(this.COLLECTION_NAME);
+        const allDocs = await collection.find({}).limit(5).toArray();
+        console.log(`🔍 VectorStore: Found ${allDocs.length} total documents in vectors collection`);
+        if (allDocs.length > 0) {
+          console.log(`🔍 VectorStore: Sample document:`, {
+            id: allDocs[0]._id,
+            hasEmbedding: !!allDocs[0].embedding,
+            hasText: !!allDocs[0].text,
+            metadata: allDocs[0].metadata
+          });
+        }
+      }
     } catch (error) {
-      console.error('Error adding documents:', error);
+      console.error('❌ VectorStore: Error adding documents:', error);
       throw error;
     }
   }
@@ -254,26 +323,14 @@ export class VectorStoreService {
     }
 
     try {
-      const db = this.client.db();
+      const db = this.client.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
 
       let count: number;
       if (orgId) {
         count = await collection.countDocuments({ 'metadata.orgId': orgId });
-        console.log(`📊 Document count for org ${orgId}: ${count}`);
       } else {
         count = await collection.countDocuments();
-        console.log(`📊 Total document count: ${count}`);
-      }
-
-      // Debug: Check document structure
-      const sampleDoc = await collection.findOne({});
-      if (sampleDoc) {
-        console.log('🔍 Sample document fields:', Object.keys(sampleDoc));
-        console.log('🔍 Has embedding field:', 'embedding' in sampleDoc);
-        console.log('🔍 Has text field:', 'text' in sampleDoc);
-        console.log('🔍 Has pageContent field:', 'pageContent' in sampleDoc);
-        console.log('🔍 Has orgId in metadata:', sampleDoc.metadata?.orgId);
       }
 
       return count;
@@ -289,16 +346,14 @@ export class VectorStoreService {
     }
 
     try {
-      const db = this.client.db();
+      const db = this.client.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
 
       let result;
       if (orgId) {
         result = await collection.deleteMany({ 'metadata.orgId': orgId });
-        console.log(`Cleared ${result.deletedCount} documents for org ${orgId} from collection ${this.COLLECTION_NAME}`);
       } else {
         result = await collection.deleteMany({});
-        console.log(`Cleared all ${result.deletedCount} documents from collection ${this.COLLECTION_NAME}`);
       }
     } catch (error) {
       console.error('Error clearing documents:', error);
@@ -312,7 +367,7 @@ export class VectorStoreService {
     }
 
     try {
-      const db = this.client.db();
+      const db = this.client.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
 
       let query: any = { 'metadata.source': source };
@@ -321,8 +376,6 @@ export class VectorStoreService {
       }
 
       const result = await collection.deleteMany(query);
-      const context = orgId ? ` for org ${orgId}` : '';
-      console.log(`Deleted ${result.deletedCount} documents with source: ${source}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by source:', error);
@@ -336,25 +389,15 @@ export class VectorStoreService {
     }
 
     try {
-      const db = this.client.db();
+      const db = this.client.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
-      console.log(`🔍 VectorStore: Deleting documents with sources:`, sources);
 
       let query: any = { 'metadata.source': { $in: sources } };
       if (orgId) {
         query['metadata.orgId'] = orgId;
       }
 
-      // First, let's check what documents exist with these sources
-      const existingDocs = await collection.find(query).toArray();
-      console.log(`🔍 VectorStore: Found ${existingDocs.length} existing documents to delete`);
-      existingDocs.forEach(doc => {
-        console.log(`  - Source: "${doc.metadata?.source}", Type: ${doc.metadata?.type}, Org: ${doc.metadata?.orgId}`);
-      });
-
       const result = await collection.deleteMany(query);
-      const context = orgId ? ` for org ${orgId}` : '';
-      console.log(`✅ VectorStore: Deleted ${result.deletedCount} documents with sources: ${sources.join(', ')}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by sources:', error);
@@ -368,7 +411,7 @@ export class VectorStoreService {
     }
 
     try {
-      const db = this.client.db();
+      const db = this.client.db('test');
       const collection = db.collection(this.COLLECTION_NAME);
 
       let query: any = { 'metadata.type': type };
@@ -377,8 +420,6 @@ export class VectorStoreService {
       }
 
       const result = await collection.deleteMany(query);
-      const context = orgId ? ` for org ${orgId}` : '';
-      console.log(`Deleted ${result.deletedCount} documents with type: ${type}${context}`);
       return result.deletedCount;
     } catch (error) {
       console.error('Error deleting documents by type:', error);

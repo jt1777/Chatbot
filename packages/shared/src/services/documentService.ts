@@ -305,9 +305,9 @@ export class DocumentService {
 
   async getDocumentStats(orgId: string): Promise<{ count: number; documents: any[] }> {
     try {
-      console.log(`🔍 Getting document stats for org ${orgId}...`);
+      // console.log(`🔍 Getting document stats for org ${orgId}...`);
       const stats = await this.documentTracker.getDocumentStats(orgId);
-      console.log('📊 Document stats:', stats);
+      // console.log('📊 Document stats:', stats);
       return stats;
     } catch (error) {
       console.error('❌ Error getting document stats:', error);

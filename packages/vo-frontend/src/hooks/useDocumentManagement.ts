@@ -263,8 +263,18 @@ export const useDocumentManagement = (token: string | null) => {
   const uploadFiles = useCallback(async () => {
     if (selectedFiles.length === 0) return;
 
+    const initialDocCount = documentStats.count;
+
+    // Show initial processing toast
+    Toast.show({
+      type: 'info',
+      text1: 'Processing Files...',
+      text2: 'Please wait 2-3 minutes while we process and index your files',
+      visibilityTime: 5000,
+    });
+
     setIsLoading(true);
-    
+
     try {
       const formData = new FormData();
       selectedFiles.forEach(file => {
@@ -282,16 +292,37 @@ export const useDocumentManagement = (token: string | null) => {
       setSelectedFiles([]);
       await loadDocumentStats();
 
-      // Show success toast
-      Toast.show({
-        type: 'success',
-        text1: 'Files Uploaded Successfully!',
-        text2: `${response.data.files?.length || selectedFiles.length} file(s) processed and added to knowledge base`,
-        visibilityTime: 4000,
-      });
+      // Poll for completion
+      let attempts = 0;
+      const maxAttempts = 30; // 30 attempts * 10 seconds = 5 minutes max
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          await loadDocumentStats();
+          const currentDocCount = documentStats.count;
+
+          if (currentDocCount > initialDocCount || attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+
+            // Show completion toast
+            Toast.show({
+              type: 'success',
+              text1: 'Files Processed Successfully!',
+              text2: `${response.data.files?.length || selectedFiles.length} file(s) processed and ready for chat`,
+              visibilityTime: 4000,
+            });
+          }
+        } catch (error) {
+          console.error('Error polling document stats:', error);
+          if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+          }
+        }
+      }, 10000); // Poll every 10 seconds
+
     } catch (error: any) {
       console.error('Error uploading files:', error);
-      
+
       // Show error toast
       Toast.show({
         type: 'error',
@@ -302,7 +333,7 @@ export const useDocumentManagement = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedFiles, authToken, loadDocumentStats]);
+  }, [selectedFiles, authToken, loadDocumentStats, documentStats.count]);
 
   const addUrl = useCallback(() => {
     if (urlInput.trim() && !websiteUrls.includes(urlInput.trim())) {
@@ -318,30 +349,66 @@ export const useDocumentManagement = (token: string | null) => {
   const scrapeWebsites = useCallback(async () => {
     if (websiteUrls.length === 0) return;
 
+    const initialDocCount = documentStats.count;
+
+    // Show initial processing toast
+    Toast.show({
+      type: 'info',
+      text1: 'Scraping Websites...',
+      text2: 'Please wait 2-3 minutes while we scrape and index the websites',
+      visibilityTime: 5000,
+    });
+
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/documents/scrape`, {
-        urls: websiteUrls
-      }, {
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
+      // Scrape each URL individually
+      const scrapePromises = websiteUrls.map(url => 
+        axios.post(`${API_BASE_URL}/api/documents/scrape`, {
+          url: url
+        }, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${authToken}`
+          }
+        })
+      );
+
+      await Promise.all(scrapePromises);
 
       setWebsiteUrls([]);
       await loadDocumentStats();
 
-      // Show success toast
-      Toast.show({
-        type: 'success',
-        text1: 'Websites Scraped Successfully!',
-        text2: `${websiteUrls.length} website(s) processed and added to knowledge base`,
-        visibilityTime: 4000,
-      });
+      // Poll for completion
+      let attempts = 0;
+      const maxAttempts = 30; // 30 attempts * 10 seconds = 5 minutes max
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          await loadDocumentStats();
+          const currentDocCount = documentStats.count;
+
+          if (currentDocCount > initialDocCount || attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+
+            // Show completion toast
+            Toast.show({
+              type: 'success',
+              text1: 'Websites Processed Successfully!',
+              text2: `${websiteUrls.length} website(s) scraped and ready for chat`,
+              visibilityTime: 4000,
+            });
+          }
+        } catch (error) {
+          console.error('Error polling document stats:', error);
+          if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+          }
+        }
+      }, 10000); // Poll every 10 seconds
+
     } catch (error: any) {
       console.error('Error scraping websites:', error);
-      
+
       // Show error toast
       Toast.show({
         type: 'error',
@@ -352,7 +419,7 @@ export const useDocumentManagement = (token: string | null) => {
     } finally {
       setIsLoading(false);
     }
-  }, [websiteUrls, authToken, loadDocumentStats]);
+  }, [websiteUrls, authToken, loadDocumentStats, documentStats.count]);
 
   return {
     // State

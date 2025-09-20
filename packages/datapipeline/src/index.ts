@@ -85,35 +85,32 @@ export async function runPipeline(options: PipelineOptions): Promise<void> {
 }
 
 // Smart update: Check for duplicates and handle accordingly
-export async function smartUpdate(options: PipelineOptions = {}): Promise<void> {
+export async function smartUpdate(options: PipelineOptions): Promise<void> {
   console.log('🔄 Smart update mode - checking for existing content...');
-  
-  const { collectionName = 'business_docs' } = options;
+
+  const { orgId } = options;
   
   // Ensure environment variables are loaded
   dotenv.config({ path: '../.env' });
   
   // Initialize VectorStoreService to check existing documents
   const vectorStoreService = VectorStoreService.getInstance();
-  await vectorStoreService.initialize(collectionName);
-  
+  await vectorStoreService.initialize();
+
   try {
-    // Check if knowledge base exists
-    const client = vectorStoreService.getClient();
-    if (client) {
-      const db = client.db();
-      const existingDocs = await db.collection(collectionName).countDocuments();
-      
-      if (existingDocs > 0) {
-        console.log(`📊 Found ${existingDocs} existing documents in knowledge base`);
-        console.log('⚠️  Running incremental update (may create duplicates)');
-        console.log('💡 For clean rebuild, use: runPipeline({ clearExisting: true })');
-      } else {
-        console.log('📝 No existing documents found - running fresh build');
-      }
+    // Check existing documents for this organization
+    const existingDocs = await vectorStoreService.getDocumentCount(orgId);
+
+    if (existingDocs > 0) {
+      console.log(`📊 Found ${existingDocs} existing documents in knowledge base`);
+      console.log('⚠️  Running incremental update (may create duplicates)');
+      console.log('💡 For clean rebuild, use: runPipeline({ clearExisting: true })');
+    } else {
+      console.log('📝 No existing documents found - running fresh build');
     }
   } finally {
-    await vectorStoreService.close();
+    // Note: VectorStoreService is a singleton, so we don't close it here
+    // await vectorStoreService.close();
   }
   
   await runPipeline(options);
@@ -128,5 +125,6 @@ export * from './embeddings/embed_docs';
 
 // For direct execution
 if (require.main === module) {
-  smartUpdate(); // Smart update (recommended)
+  // smartUpdate({ orgId: 'your-org-id' }); // Smart update (recommended)
+  console.log('Direct execution disabled - please provide orgId in smartUpdate options');
 }
