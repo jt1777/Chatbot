@@ -373,14 +373,14 @@ export class AuthService {
             if (!orgsMap.has(orgId)) {
               // Get org details from the organization
               const orgDetails = await this.getOrganization(orgId);
+              // Use the same admin counting method as the API endpoint
+              const adminCount = await this.countAdminsForOrganization(orgId);
               orgsMap.set(orgId, {
                 _id: orgId,
                 name: orgDetails?.name || orgId,
                 isPublic: (access as any).isPublic !== false, // Use isPublic from organizationAccess
-                adminCount: 1
+                adminCount: adminCount
               });
-            } else {
-              orgsMap.get(orgId).adminCount++;
             }
           }
         }
@@ -1671,6 +1671,20 @@ export class AuthService {
         updatedAt: updatedUser.updatedAt
       } as any
     };
+  }
+
+  // Count admins for a specific organization
+  async countAdminsForOrganization(orgId: string): Promise<number> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Count admins from organizationAccess field (multi-role format)
+    const adminCount = await this.usersCollection.countDocuments({ 
+      [`organizationAccess.${orgId}.role`]: 'admin' 
+    });
+
+    return adminCount;
   }
 
   private generateInviteCode(): string {

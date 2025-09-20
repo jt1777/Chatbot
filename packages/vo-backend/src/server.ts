@@ -550,32 +550,59 @@ app.put('/api/org/visibility', authenticateToken, requireOrgAdmin, async (req, r
 // Get admin counts for user's accessible organizations
 app.get('/api/user/org-admin-counts', authenticateToken, requireUser, async (req, res) => {
   try {
+    console.log('🔍 Admin counts endpoint called');
     const user = (req as any).user;
     const { orgIds } = req.query;
     
-    if (!orgIds || !Array.isArray(orgIds)) {
-      return res.status(400).json({ error: 'orgIds query parameter is required and must be an array' });
+    console.log('🔍 Request details:', { 
+      userId: user?.userId, 
+      orgIds, 
+      orgIdsType: typeof orgIds,
+      isArray: Array.isArray(orgIds)
+    });
+    
+    if (!orgIds) {
+      console.log('❌ No orgIds parameter provided');
+      return res.status(400).json({ error: 'orgIds query parameter is required' });
     }
 
+// Handle both string and array formats
+let orgIdsArray: string[];
+if (Array.isArray(orgIds)) {
+  orgIdsArray = orgIds as string[];
+} else if (typeof orgIds === 'string') {
+  orgIdsArray = [orgIds];
+} else {
+  console.log('❌ Invalid orgIds parameter type:', { orgIds, type: typeof orgIds });
+  return res.status(400).json({ error: 'orgIds must be a string or array' });
+}
+
+    if (orgIdsArray.length === 0) {
+      console.log('🔍 Empty orgIds array, returning empty admin counts');
+      return res.json({});
+    }
+
+    console.log('🔍 Processing orgIds:', orgIdsArray);
+
     const adminCounts: { [orgId: string]: number } = {};
-    
-    for (const orgId of orgIds) {
+
+    for (const orgId of orgIdsArray) {
       try {
-        const org = await authServiceInstance.getOrganization(orgId as string);
-        if (org) {
-          adminCounts[orgId as string] = org.adminCount || 0;
-        } else {
-          adminCounts[orgId as string] = 0;
-        }
+        console.log(`🔍 Counting admins for org: ${orgId}`);
+        // Count admins directly from the database using the authService method
+        const adminCount = await authService.countAdminsForOrganization(orgId as string);
+        adminCounts[orgId as string] = adminCount;
+        console.log(`✅ Admin count for ${orgId}: ${adminCount}`);
       } catch (error) {
-        console.error(`Error getting admin count for org ${orgId}:`, error);
+        console.error(`❌ Error getting admin count for org ${orgId}:`, error);
         adminCounts[orgId as string] = 0;
       }
     }
     
+    console.log('🔍 Final admin counts:', adminCounts);
     res.json(adminCounts);
   } catch (error: any) {
-    console.error('Get org admin counts error:', error);
+    console.error('❌ Get org admin counts error:', error);
     res.status(500).json({ error: error.message });
   }
 });

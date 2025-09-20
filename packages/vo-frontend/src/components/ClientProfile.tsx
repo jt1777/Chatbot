@@ -41,7 +41,7 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({
       {/* Organization Information Section - Show if user has joined an organization */}
       {clientOrgInfo && (
         <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'white', marginBottom: 16 }}>
             Organization Information
           </Text>
           

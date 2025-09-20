@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
 import { API_BASE_URL } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -80,7 +81,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       // The AuthContext will handle the rest
     } catch (error: any) {
       console.error('Multi-role login error:', error);
-      Alert.alert('Login Error', error.response?.data?.error || error.message || 'Login failed');
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+
+      // Provide more user-friendly error messages
+      let userFriendlyMessage = 'Login failed';
+      if (errorMessage.includes('Invalid email or password')) {
+        userFriendlyMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+        userFriendlyMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('timeout')) {
+        userFriendlyMessage = 'Connection timeout. Please try again.';
+      } else if (errorMessage) {
+        userFriendlyMessage = errorMessage;
+      }
+
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: userFriendlyMessage,
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +114,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       // The AuthContext will handle the rest
     } catch (error: any) {
       console.error('Unified login error:', error);
-      Alert.alert('Login Error', error.response?.data?.error || error.message || 'Login failed');
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+
+      // Provide more user-friendly error messages
+      let userFriendlyMessage = 'Login failed';
+      if (errorMessage.includes('Invalid email or password')) {
+        userFriendlyMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+        userFriendlyMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('timeout')) {
+        userFriendlyMessage = 'Connection timeout. Please try again.';
+      } else if (errorMessage) {
+        userFriendlyMessage = errorMessage;
+      }
+
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: userFriendlyMessage,
+        visibilityTime: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +204,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   // Handle joining an organization
   const handleJoinOrganization = (orgId: string) => {
     // For now, just show an alert - this will be implemented later
-    Alert.alert('Join Organization', `Would you like to join this organization?`);
+    // Show confirmation toast for joining organization
+    Toast.show({
+      type: 'info',
+      text1: 'Join Organization',
+      text2: 'Would you like to join this organization?',
+      visibilityTime: 3000,
+    });
   };
 
   // Render unified organization selection screen
@@ -337,12 +382,22 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleClientAuth = async () => {
     if (!selectedOrgId) {
-      Alert.alert('Error', 'Please select an organization');
+      Toast.show({
+        type: 'error',
+        text1: 'Selection Required',
+        text2: 'Please select an organization',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!phone.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+      Toast.show({
+        type: 'error',
+        text1: 'Phone Number Required',
+        text2: 'Please enter your phone number',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -355,7 +410,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client auth error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Authentication failed');
+      Toast.show({
+        type: 'error',
+        text1: 'Authentication Failed',
+        text2: error.response?.data?.error || 'Authentication failed',
+        visibilityTime: 3000,
+      });
     }
   };
 
@@ -371,7 +431,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Guest access error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to start guest session');
+      Toast.show({
+        type: 'error',
+        text1: 'Guest Session Failed',
+        text2: error.response?.data?.error || 'Failed to start guest session',
+        visibilityTime: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -379,12 +444,22 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleClientLogin = async () => {
     if (!selectedOrgId) {
-      Alert.alert('Error', 'Please select an organization');
+      Toast.show({
+        type: 'error',
+        text1: 'Selection Required',
+        text2: 'Please select an organization',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!phone.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
+      Toast.show({
+        type: 'error',
+        text1: 'Phone Number Required',
+        text2: 'Please enter your phone number',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -398,7 +473,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client login error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Login failed');
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: error.response?.data?.error || 'Login failed',
+        visibilityTime: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -406,17 +486,32 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleClientRegister = async () => {
     if (!clientEmail.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      Toast.show({
+        type: 'error',
+        text1: 'Email Required',
+        text2: 'Please enter an email address',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!password.trim()) {
-      Alert.alert('Error', 'Please enter a password');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Required',
+        text2: 'Please enter a password',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Mismatch',
+        text2: 'Passwords do not match',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -430,7 +525,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client register error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Registration failed');
+      Toast.show({
+        type: 'error',
+        text1: 'Registration Failed',
+        text2: error.response?.data?.error || 'Registration failed',
+        visibilityTime: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -444,22 +544,42 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     console.log('inviteCode:', inviteCode);
     
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter an email address');
+      Toast.show({
+        type: 'error',
+        text1: 'Email Required',
+        text2: 'Please enter an email address',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!password.trim()) {
-      Alert.alert('Error', 'Please enter a password');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Required',
+        text2: 'Please enter a password',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Mismatch',
+        text2: 'Passwords do not match',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!inviteCode.trim()) {
-      Alert.alert('Error', 'Please enter an invite code');
+      Toast.show({
+        type: 'error',
+        text1: 'Invite Code Required',
+        text2: 'Please enter an invite code',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -477,7 +597,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       await login(response.data.token, response.data.user);
     } catch (error: any) {
       console.error('Client invitation error:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Invitation failed');
+      Toast.show({
+        type: 'error',
+        text1: 'Invitation Failed',
+        text2: error.response?.data?.error || 'Invitation failed',
+        visibilityTime: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -486,17 +611,32 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   // Unified registration function for all user types
   const handleUnifiedRegister = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      Toast.show({
+        type: 'error',
+        text1: 'Credentials Required',
+        text2: 'Please enter both email and password',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!confirmPassword.trim() || password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Mismatch',
+        text2: 'Passwords do not match',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (password.length < 1 ) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Too Short',
+        text2: 'Password must be at least 6 characters',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -514,7 +654,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     } catch (error: any) {
       console.error('Registration error:', error);
       const errorMessage = error.response?.data?.error || 'Registration failed';
-      Alert.alert('Error', errorMessage);
+      Toast.show({
+        type: 'error',
+        text1: 'Registration Failed',
+        text2: errorMessage,
+        visibilityTime: 3000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -522,7 +667,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleAdminLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      Toast.show({
+        type: 'error',
+        text1: 'Credentials Required',
+        text2: 'Please enter both email and password',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -533,12 +683,22 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     } catch (error: any) {
       console.error('Admin login error:', error);
       const errorMessage = error.response?.data?.error || 'Login failed';
-      
+
       // Provide specific error message for unregistered email
       if (errorMessage === 'Invalid email or password') {
-        Alert.alert('Error', 'Please register as an Admin by creating an organization');
+        Toast.show({
+          type: 'info',
+          text1: 'Account Not Found',
+          text2: 'Please register as an Admin by creating an organization',
+          visibilityTime: 4000,
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        Toast.show({
+          type: 'error',
+          text1: 'Login Failed',
+          text2: errorMessage,
+          visibilityTime: 3000,
+        });
       }
     }
   };
@@ -548,23 +708,43 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     
     if (!email.trim() || !password.trim()) {
       console.log('Validation failed: missing email or password');
-      Alert.alert('Error', 'Please enter both email and password');
+      Toast.show({
+        type: 'error',
+        text1: 'Credentials Required',
+        text2: 'Please enter both email and password',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (password.length < 1 ) {
       console.log('Validation failed: password too short');
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Toast.show({
+        type: 'error',
+        text1: 'Password Too Short',
+        text2: 'Password must be at least 6 characters',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (adminMode === 'create' && !orgName.trim()) {
-      Alert.alert('Error', 'Please enter an organization name');
+      Toast.show({
+        type: 'error',
+        text1: 'Organization Name Required',
+        text2: 'Please enter an organization name',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (adminMode === 'join' && !inviteCode.trim()) {
-      Alert.alert('Error', 'Please enter an invite code');
+      Toast.show({
+        type: 'error',
+        text1: 'Invite Code Required',
+        text2: 'Please enter an invite code',
+        visibilityTime: 3000,
+      });
       return;
     }
 
@@ -582,7 +762,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         console.log('Registration successful:', response.data);
         await login(response.data.token, response.data.user);
-        Alert.alert('Success', 'Organization and account created successfully!');
+        Toast.show({
+          type: 'success',
+          text1: 'Success!',
+          text2: 'Organization and account created successfully!',
+          visibilityTime: 3000,
+        });
       } else {
         // Join existing organization
         console.log('Joining existing organization...');
@@ -594,7 +779,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         console.log('Join successful:', response.data);
         await login(response.data.token, response.data.user);
-        Alert.alert('Success', 'Successfully joined the organization!');
+        Toast.show({
+          type: 'success',
+          text1: 'Success!',
+          text2: 'Successfully joined the organization!',
+          visibilityTime: 3000,
+        });
       }
     } catch (error: any) {
       console.error('Admin registration error:', error);
@@ -602,11 +792,26 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       
       // Provide specific error message for duplicate organization name
       if (errorMessage === 'Organization name has already been taken') {
-        Alert.alert('Error', 'Organization name has already been taken');
+        Toast.show({
+          type: 'error',
+          text1: 'Organization Name Taken',
+          text2: 'This organization name is already taken. Please choose a different name.',
+          visibilityTime: 4000,
+        });
       } else if (errorMessage === 'Email and organization has already been created') {
-        Alert.alert('Error', 'Email and organization has already been created');
+        Toast.show({
+          type: 'info',
+          text1: 'Account Already Exists',
+          text2: 'An account with this email and organization already exists.',
+          visibilityTime: 4000,
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        Toast.show({
+          type: 'error',
+          text1: 'Registration Failed',
+          text2: errorMessage,
+          visibilityTime: 3000,
+        });
       }
     } finally {
       setIsLoading(false);

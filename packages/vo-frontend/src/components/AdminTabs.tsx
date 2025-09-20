@@ -100,10 +100,10 @@ export const AdminTabs: React.FC<AdminTabsProps> = ({
               <Text style={{ fontSize: 16, color: '#1F2937' }}>{user?.orgName || 'Not set'}</Text>
             </View>
             
-            <View style={{ marginBottom: 8 }}>
+            {/* <View style={{ marginBottom: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Identifier:</Text>
               <Text style={{ fontSize: 14, color: '#6B7280', fontFamily: 'monospace' }}>{user?.orgId}</Text>
-            </View>
+            </View> */}
             
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>Your Role:</Text>

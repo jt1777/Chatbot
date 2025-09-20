@@ -62,20 +62,44 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
     }
     
     const orgIds = Object.keys(user.accessibleOrgs);
+    //console.log('🔍 Extracted orgIds:', orgIds);
     const userOrgs: Organization[] = [];
     
     // Fetch admin counts for all organizations at once
     let adminCounts: { [orgId: string]: number } = {};
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/user/org-admin-counts?${orgIds.map(id => `orgIds=${id}`).join('&')}`, {
-        headers: {
-          'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${token || ''}`
-        }
-      });
-      adminCounts = response.data;
-    } catch (error) {
-      console.error('Error fetching admin counts:', error);
+    
+    // Only make the API call if we have orgIds
+    if (orgIds.length > 0) {
+      try {
+        // Ensure orgIds is always an array
+        const orgIdsArray = Array.isArray(orgIds) ? orgIds : [orgIds];
+        //console.log('🔍 Making admin counts request with orgIds:', orgIdsArray);
+        
+        const response = await axios.get(`${API_BASE_URL}/api/user/org-admin-counts`, {
+          params: {
+            orgIds: orgIdsArray
+          },
+          paramsSerializer: {
+            indexes: null
+          },
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${token || ''}`
+          }
+        });
+        adminCounts = response.data;
+        //console.log('🔍 Admin counts response:', adminCounts);
+      } catch (error: any) {
+        console.error('Error fetching admin counts:', error);
+        console.error('Error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message
+        });
+      }
+    } else {
+      console.log('🔍 No orgIds to fetch admin counts for');
     }
     
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
@@ -326,8 +350,11 @@ export const OrganizationSelectionScreen: React.FC<OrganizationSelectionScreenPr
 
       {/* Search Organizations */}
       <View style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 12 }}>
+        <Text style={{ fontSize: 18, fontWeight: '600', color: 'white', marginBottom: 4 }}>
           Search Organizations
+        </Text>
+        <Text style={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.7)', marginBottom: 12 }}>
+          (leave blank for all results)
         </Text>
         <TextInput
           style={{

@@ -135,7 +135,7 @@ export const useOrganization = (token: string | null) => {
   // Clear organization data when switching organizations
   useEffect(() => {
     if (user && authToken) {
-      console.log('🔄 Organization switched, clearing description. New currentOrgId:', user?.currentOrgId);
+      //console.log('🔄 Organization switched, clearing description. New currentOrgId:', user?.currentOrgId);
       // Clear description when currentOrgId changes to avoid showing old organization's data
       setOrgDescription('');
     }
