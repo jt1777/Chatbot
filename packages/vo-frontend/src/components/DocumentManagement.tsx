@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface Document {
@@ -316,21 +316,23 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
       <View style={{ backgroundColor: 'white', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
         <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Upload Documents</Text>
         
-        <input
-          id="fileInput"
-          type="file"
-          accept=".pdf,.txt"
-          multiple
-          onChange={onFileSelect}
+        <TouchableOpacity
+          onPress={onFileSelect}
           style={{
             marginBottom: 12,
             padding: 8,
-            border: '1px solid #D1D5DB',
+            borderWidth: 1,
+            borderColor: '#D1D5DB',
             borderRadius: 4,
-            width: '100%'
+            backgroundColor: '#F9FAFB',
+            alignItems: 'center'
           }}
           disabled={isLoading}
-        />
+        >
+          <Text style={{ color: '#374151', fontSize: 16 }}>
+            {isLoading ? 'Uploading...' : 'Select Files (.pdf, .txt)'}
+          </Text>
+        </TouchableOpacity>
         
         {/* File List */}
         {selectedFiles.length > 0 && (
@@ -494,14 +496,24 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
               <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
                 Chunk Size: {ragConfig.chunkSize}
               </Text>
-              <input
-                type="range"
-                min="500"
-                max="3000"
-                step="100"
-                value={ragConfig.chunkSize}
-                onChange={(e) => onRagConfigChange({...ragConfig, chunkSize: parseInt(e.target.value)})}
-                style={{ width: '100%' }}
+              <TextInput
+                value={ragConfig.chunkSize.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 500;
+                  const clampedValue = Math.max(500, Math.min(3000, value));
+                  onRagConfigChange({...ragConfig, chunkSize: clampedValue});
+                }}
+                keyboardType="numeric"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  backgroundColor: '#F9FAFB',
+                  marginBottom: 8
+                }}
+                placeholder="500-3000"
               />
               <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                 Controls how large each text chunk is (500-3000 characters)
@@ -513,14 +525,24 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
               <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
                 Chunk Overlap: {ragConfig.chunkOverlap}
               </Text>
-              <input
-                type="range"
-                min="50"
-                max="500"
-                step="25"
-                value={ragConfig.chunkOverlap}
-                onChange={(e) => onRagConfigChange({...ragConfig, chunkOverlap: parseInt(e.target.value)})}
-                style={{ width: '100%' }}
+              <TextInput
+                value={ragConfig.chunkOverlap.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 50;
+                  const clampedValue = Math.max(50, Math.min(500, value));
+                  onRagConfigChange({...ragConfig, chunkOverlap: clampedValue});
+                }}
+                keyboardType="numeric"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  backgroundColor: '#F9FAFB',
+                  marginBottom: 8
+                }}
+                placeholder="50-500"
               />
               <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                 Overlap between chunks to preserve context (50-500 characters)
@@ -532,14 +554,24 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
               <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
                 Similarity Threshold: {ragConfig.similarityThreshold.toFixed(2)}
               </Text>
-              <input
-                type="range"
-                min="0.5"
-                max="0.9"
-                step="0.05"
-                value={ragConfig.similarityThreshold}
-                onChange={(e) => onRagConfigChange({...ragConfig, similarityThreshold: parseFloat(e.target.value)})}
-                style={{ width: '100%' }}
+              <TextInput
+                value={ragConfig.similarityThreshold.toString()}
+                onChangeText={(text) => {
+                  const value = parseFloat(text) || 0.5;
+                  const clampedValue = Math.max(0.5, Math.min(0.9, value));
+                  onRagConfigChange({...ragConfig, similarityThreshold: clampedValue});
+                }}
+                keyboardType="numeric"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  backgroundColor: '#F9FAFB',
+                  marginBottom: 8
+                }}
+                placeholder="0.5-0.9"
               />
               <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                 Minimum similarity score for relevant documents (0.5-0.9)
@@ -551,14 +583,24 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
               <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: '#374151' }}>
                 Search Results Limit: {ragConfig.ragSearchLimit}
               </Text>
-              <input
-                type="range"
-                min="3"
-                max="20"
-                step="1"
-                value={ragConfig.ragSearchLimit}
-                onChange={(e) => onRagConfigChange({...ragConfig, ragSearchLimit: parseInt(e.target.value)})}
-                style={{ width: '100%' }}
+              <TextInput
+                value={ragConfig.ragSearchLimit.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 3;
+                  const clampedValue = Math.max(3, Math.min(20, value));
+                  onRagConfigChange({...ragConfig, ragSearchLimit: clampedValue});
+                }}
+                keyboardType="numeric"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#D1D5DB',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  backgroundColor: '#F9FAFB',
+                  marginBottom: 8
+                }}
+                placeholder="3-20"
               />
               <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                 Maximum number of documents to retrieve (3-20)
@@ -568,11 +610,12 @@ export const DocumentManagement: React.FC<DocumentManagementProps> = ({
             {/* Use Semantic Search */}
             <View style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={ragConfig.useSemanticSearch}
-                  onChange={(e) => onRagConfigChange({...ragConfig, useSemanticSearch: e.target.checked})}
+                <Switch
+                  value={ragConfig.useSemanticSearch}
+                  onValueChange={(value) => onRagConfigChange({...ragConfig, useSemanticSearch: value})}
                   style={{ marginRight: 8 }}
+                  trackColor={{ false: '#D1D5DB', true: '#3B82F6' }}
+                  thumbColor={ragConfig.useSemanticSearch ? '#FFFFFF' : '#FFFFFF'}
                 />
                 <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#374151' }}>
                   Use Semantic Search
