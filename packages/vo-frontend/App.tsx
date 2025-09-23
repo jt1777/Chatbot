@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast, { BaseToast } from 'react-native-toast-message';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import AuthScreen from './src/components/AuthScreen';
@@ -284,9 +285,11 @@ const toastConfig = {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-      <Toast config={toastConfig} />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <MainApp />
+        <Toast config={toastConfig} />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

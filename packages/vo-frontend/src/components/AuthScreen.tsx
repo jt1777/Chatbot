@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import { API_BASE_URL } from '../config/api';
@@ -824,14 +825,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   }
 
   return (
-    <LinearGradient
-      colors={['#1E3A8A', '#581C87']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={{ flex: 1 }}
-    >
-      <ScrollView style={{ flex: 1 }}>
-        <View style={{ padding: 20 }}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <LinearGradient
+        colors={['#1E3A8A', '#581C87']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={{ flex: 1 }}>
+          <View style={{ padding: 20 }}>
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 30 }}>
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 16 }}>
@@ -1791,5 +1793,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         </View>
       </ScrollView>
     </LinearGradient>
+    </SafeAreaView>
   );
 }
