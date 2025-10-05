@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "cd packages/vo-backend && npm install && npm run build",
   "builds": [
     {
       "src": "packages/vo-backend/dist/server.js",

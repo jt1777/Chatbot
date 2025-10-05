@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jthai7.askakasha.vo",
+      "bundleIdentifier": "com.askakasha.askakasha",
       "buildNumber": "1"
     },
     "android": {
@@ -24,7 +24,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jthai7.askakasha.vo",
+      "package": "com.askakasha.askakasha",
       "versionCode": 1
     },
     "web": {
