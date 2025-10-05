@@ -2,17 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "packages/vo-backend/package.json",
-      "use": "@vercel/node",
-      "config": {
-        "buildCommand": "cd packages/vo-backend && npm install && npm run build"
-      }
+      "src": "server.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "packages/vo-backend/dist/server.js"
+      "dest": "server.js"
     }
   ],
   "env": {

@@ -1,26 +1,49 @@
 {
-  "name": "chatbot-vo",
+  "name": "@chatbot/vo-backend",
   "version": "1.0.0",
-  "private": true,
-  "description": "AI Chatbot with RAG - Organizational Version (VO)",
+  "main": "dist/server.js",
   "scripts": {
-    "dev:backend": "cd packages/vo-backend && npm run dev",
-    "dev:frontend": "cd packages/vo-frontend && npm start",
-    "dev:datapipeline": "cd packages/datapipeline && npm run dev",
-    "dev:shared": "cd packages/shared && npm run build",
-    "build:all": "cd packages/shared && npm run build && cd ../vo-backend && npm run build && cd ../datapipeline && npm run build",
-    "install:all": "cd packages/shared && npm install && cd ../vo-backend && npm install && cd ../vo-frontend && npm install && cd ../datapipeline && npm install",
-    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist",
-    "reset-db": "node scripts/reset-vo-database.js",
-    "test": "npm run test --workspaces"
+    "build": "tsc",
+    "start": "npm run build && node dist/server.js",
+    "dev": "ts-node src/server.ts",
+    "clear-db": "node scripts/clear-database.js",
+    "cleanup-temp": "node scripts/cleanup-temp.js",
+    "vercel-build": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Backend API server for Chatbot VO",
+  "dependencies": {
+    "@chatbot/shared": "file:../shared",
+    "@huggingface/transformers": "^3.7.2",
+    "@langchain/community": "^0.3.55",
+    "@langchain/core": "^0.3.75",
+    "@langchain/mongodb": "^0.1.0",
+    "@langchain/textsplitters": "^0.1.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.3.3",
+    "axios": "^1.12.1",
+    "bcryptjs": "^3.0.2",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.19.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "tesseract.js": "^5.0.0",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
-    "mongodb": "^6.0.0",
-    "dotenv": "^16.0.0"
-  },
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "@types/cheerio": "^0.22.35",
+    "@types/multer": "^1.4.12",
+    "@types/pdf-parse": "^1.1.4",
+    "typescript": "^5.9.2"
   }
 }
