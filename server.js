@@ -13,7 +13,7 @@ app.use(express.json());
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Ask Akasha Backend API', 
+    message: 'Ask Akasha Backend API - Updated', 
     status: 'running',
     timestamp: new Date().toISOString()
   });
