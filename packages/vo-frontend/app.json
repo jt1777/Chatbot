@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Ask Akasha",
+    "slug": "ask-akasha-vo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jthai7.frontend"
+      "bundleIdentifier": "com.jthai7.askakasha.vo",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jthai7.frontend"
+      "package": "com.jthai7.askakasha.vo",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
