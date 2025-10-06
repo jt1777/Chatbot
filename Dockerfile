@@ -28,7 +28,8 @@ RUN cd packages/vo-backend \
 # Copy backend sources then build
 COPY packages/vo-backend/ packages/vo-backend/
 RUN cd packages/vo-backend \
- && npm run build
+ && npm run build \
+ && npm prune --omit=dev --no-audit --no-fund
 
 # Runtime image
 FROM node:20-slim AS runtime
@@ -42,9 +43,6 @@ COPY --from=base /app/packages/shared/dist /app/packages/shared/dist
 COPY --from=base /app/packages/vo-backend/dist /app/packages/vo-backend/dist
 COPY --from=base /app/packages/vo-backend/node_modules /app/packages/vo-backend/node_modules
 
-# Prune dev dependencies for runtime
-RUN cd /app/packages/vo-backend \
- && npm prune --omit=dev --no-audit --no-fund
 
 EXPOSE 3002
 CMD ["node", "packages/vo-backend/dist/server.js"]
