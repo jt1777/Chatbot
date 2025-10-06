@@ -38,6 +38,10 @@ ENV NODE_ENV=production \
     NPM_CONFIG_CACHE=/tmp/.npm
 WORKDIR /app
 
+# Ensure system CA certificates are present for TLS (MongoDB Atlas)
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
 # Only copy the built artifacts and node_modules needed at runtime
 # Include the whole shared package (package.json + dist) so '@chatbot/shared' resolves
 COPY --from=base /app/packages/shared /app/packages/shared
