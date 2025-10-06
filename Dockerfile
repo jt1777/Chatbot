@@ -39,7 +39,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # Only copy the built artifacts and node_modules needed at runtime
-COPY --from=base /app/packages/shared/dist /app/packages/shared/dist
+# Include the whole shared package (package.json + dist) so '@chatbot/shared' resolves
+COPY --from=base /app/packages/shared /app/packages/shared
 COPY --from=base /app/packages/vo-backend/dist /app/packages/vo-backend/dist
 COPY --from=base /app/packages/vo-backend/node_modules /app/packages/vo-backend/node_modules
 
