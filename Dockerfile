@@ -34,7 +34,6 @@ RUN cd packages/vo-backend \
 # Runtime image
 FROM node:20-slim AS runtime
 ENV NODE_ENV=production \
-    PORT=3002 \
     NPM_CONFIG_CACHE=/tmp/.npm
 WORKDIR /app
 
