@@ -41,4 +41,3 @@ COPY --from=base /app/packages/vo-backend/node_modules /app/packages/vo-backend/
 
 EXPOSE 3002
 CMD ["node", "packages/vo-backend/dist/server.js"]
-EOF
