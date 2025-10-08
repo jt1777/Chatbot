@@ -1,21 +1,14 @@
-# 🚀 Deployment Guide
+# 🚀 Deployment Guide - Ask Akasha
 
-## Environment Configuration
+This guide covers deploying the Ask Akasha chatbot with Railway (backend) and TestFlight (iOS frontend).
 
-The frontend automatically detects the environment and uses the appropriate API URL.
+## Architecture Overview
 
-### Development Mode (Default)
-- Uses `http://localhost:3002`
-- No configuration needed
-- Just run both backend and frontend locally
-
-### Demo/Production Mode
-Create a `.env` file in the `frontend/` directory:
-
-```bash
-# frontend/.env
-EXPO_PUBLIC_API_BASE_URL=https://your-ngrok-url.ngrok-free.app
-```
+- **Backend**: Railway (Node.js + Express)
+- **Database**: MongoDB Atlas (with Vector Search)
+- **Frontend**: React Native iOS app
+- **Distribution**: TestFlight → App Store
+- **AI**: xAI Grok-3 model
 
 ## Prerequisites
 
@@ -23,296 +16,285 @@ Before deployment, ensure you have:
 
 1. **MongoDB Atlas Account** with Vector Search enabled
 2. **xAI API Key** for Grok-3 model
-3. **ngrok** for local tunneling (optional)
+3. **Apple Developer Account** for TestFlight/App Store
+4. **Railway Account** (free tier available)
+5. **GitHub Repository** (for automatic deployments)
 
-## Quick Demo Setup with ngrok
+## Backend Deployment (Railway)
 
-### 1. Start Backend
-```bash
-cd backend
-npm run dev
-```
+### 1. Railway Setup
 
-### 2. Expose with ngrok
-```bash
-ngrok http 3002
-```
+1. **Create Railway Account**
+   - Go to [railway.app](https://railway.app)
+   - Sign up with GitHub
 
-### 3. Configure Frontend
-Create `frontend/.env`:
-```bash
-EXPO_PUBLIC_API_BASE_URL=https://c2d69131f166.ngrok-free.app
-```
-*(Replace with your actual ngrok URL)*
+2. **Deploy from GitHub**
+   - Click "Deploy from GitHub"
+   - Select your Chatbot repository
+   - Choose `feature/VO-single-collection` branch
 
-### 4. Start Frontend
-```bash
-cd frontend
-npx expo start --web
-```
+3. **Configure Service**
+   - **Root Directory**: `.` (repository root)
+   - **Build Command**: `npm install && npm -w packages/shared run build && npm -w packages/vo-backend run build`
+   - **Start Command**: `node packages/vo-backend/dist/server.js`
 
-## Deployment Options
+### 2. Environment Variables
 
-### Option 1: ngrok + Vercel (Quick Demo)
-- ✅ Ready in 10 minutes
-- ✅ Free
-- ❌ Temporary URLs
-- ❌ Requires your computer running
+Set these in Railway dashboard:
 
-### Option 2: Railway + Vercel (Production)
-- ✅ Permanent URLs
-- ✅ Free tier available
-- ✅ Automatic deployments
-- ✅ Professional setup
-
-### Option 3: Heroku (Simple)
-- ✅ Easy setup
-- ✅ Reliable
-- ❌ Paid ($7-14/month)
-
-## Environment Variables
-
-### Frontend (.env)
-```bash
-EXPO_PUBLIC_API_BASE_URL=https://your-backend-url.com
-```
-
-### Backend (.env)
 ```bash
 # Required
 XAI_API_KEY=your_xai_api_key_here
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database
+NODE_ENV=production
+JWT_SECRET=your_secure_jwt_secret_here
 
 # Optional
+CORS_ORIGIN=https://your-frontend-domain.com
 PORT=3002
 ```
 
-**Note**: RAG configuration is now managed through the API/UI configuration system, not environment variables.
+### 3. MongoDB Atlas Setup
 
-### Data Pipeline (.env)
-Not required.
-
-## MongoDB Atlas Setup
-
-### 1. Create Vector Search Index
-
-In MongoDB Atlas, create a vector search index on your collection:
-
-```json
-{
-  "fields": [
-    {
-      "type": "vector",
-      "path": "embedding",
-      "numDimensions": 384,
-      "similarity": "cosine"
-    }
-  ]
-}
-```
-
-### 2. Collection Structure
-
-Ensure your collection has these fields:
-- `text`: The document content
-- `embedding`: Vector embeddings (384 dimensions)
-- `source`: Document source (filename or URL)
-- `type`: Document type (upload, web, pdf)
-- `metadata`: Additional document metadata including source, type, and similarity scores
-
-### 3. Document Tracker Collection
-
-The system also uses a separate `document_tracker` collection for metadata:
-- `source`: Document source (filename or URL)
-- `type`: Document type (upload, web)
-- `chunksCount`: Number of chunks created
-- `uploadDate`: When the document was processed
-
-## Feature Configuration
-
-### Semantic Search Setup
-To enable semantic search for better document understanding:
-
-1. **Enable via Configuration**:
-   - Use the RAG Configuration API or UI to set `useSemanticSearch: true`
-   - Or access the RAG Configuration panel in the frontend
-
-2. **Upload Documents with Semantic Processing**:
-   Use the `/api/documents/upload-semantic` endpoint for enhanced chunking
-
-3. **Configure via UI**:
-   - Access the RAG Configuration panel in the frontend
-   - Toggle "Use Semantic Search" option
-   - Adjust chunk size and overlap for optimal performance
-
-### RAG Configuration Management
-The system provides real-time configuration updates:
-
-1. **Via Frontend UI**:
-   - Navigate to the Documents tab
-   - Click "RAG Configuration" button
-   - Adjust parameters using sliders and toggles
-   - Save changes (takes effect immediately)
-
-2. **Via API**:
-   ```bash
-   # Get current configuration
-   curl http://localhost:3002/api/config/rag
+1. **Create Vector Search Index**
    
-   # Update configuration
-   curl -X POST http://localhost:3002/api/config/rag \
-     -H "Content-Type: application/json" \
-     -d '{"useSemanticSearch": true, "chunkSize": 1500}'
+   In MongoDB Atlas, create a vector search index on your collection:
+
+   ```json
+   {
+     "fields": [
+       {
+         "type": "vector",
+         "path": "embedding",
+         "numDimensions": 384,
+         "similarity": "cosine"
+       }
+     ]
+   }
    ```
 
-## Testing Configuration
+2. **Collection Structure**
+   
+   Ensure your collection has these fields:
+   - `text`: Document content
+   - `embedding`: Vector embeddings (384 dimensions)
+   - `source`: Document source (filename or URL)
+   - `type`: Document type (upload, web, pdf)
+   - `metadata`: Additional document metadata
+   - `orgId`: Organization ID for multi-tenancy
 
-The app will log the current API configuration in the console:
-```
-🔧 API Configuration: {
-  baseUrl: "https://your-url.com",
-  source: "environment"
-}
-```
+3. **Document Tracker Collection**
+   
+   Separate `document_tracker` collection for metadata:
+   - `source`: Document source
+   - `type`: Document type
+   - `chunksCount`: Number of chunks created
+   - `uploadDate`: Processing timestamp
+   - `orgId`: Organization ID
 
-## Health Checks
+### 4. Verify Backend Deployment
 
-### Backend Health
+Test your Railway deployment:
+
 ```bash
-curl http://localhost:3002/
-# Should return: "Backend running"
-```
+# Health check
+curl https://your-railway-domain.railway.app/
 
-### Document Stats
-```bash
-curl http://localhost:3002/api/documents/stats
-# Should return document count and list
-```
+# API health
+curl https://your-railway-domain.railway.app/api/health
 
-### RAG Test
-```bash
-curl -X POST http://localhost:3002/api/chat \
+# Test chat endpoint
+curl -X POST https://your-railway-domain.railway.app/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "test query", "useRAG": true}'
+  -d '{"message": "test query"}'
 ```
 
-### Document Management Test
-```bash
-# Test document deletion
-curl -X DELETE http://localhost:3002/api/documents/delete \
-  -H "Content-Type: application/json" \
-  -d '{"documentIds": ["test-document.pdf"]}'
+## Frontend Deployment (TestFlight)
 
-# Test semantic upload
-curl -X POST http://localhost:3002/api/documents/upload-semantic \
-  -F "file=@test-document.pdf"
-```
+### 1. Development Setup
 
-### Configuration Test
-```bash
-# Test RAG configuration
-curl http://localhost:3002/api/config/rag
+1. **Configure Environment**
+   
+   Update `packages/vo-frontend/.env`:
+   ```bash
+   EXPO_PUBLIC_API_BASE_URL=https://your-railway-domain.railway.app
+   ```
 
-# Test configuration update
-curl -X POST http://localhost:3002/api/config/rag \
-  -H "Content-Type: application/json" \
-  -d '{"useSemanticSearch": true, "similarityThreshold": 0.8}'
-```
+2. **Update App Configuration**
+   
+   Edit `packages/vo-frontend/app.json`:
+   ```json
+   {
+     "expo": {
+       "name": "Ask Akasha",
+       "slug": "ask-akasha-vo",
+       "version": "1.0.0",
+       "ios": {
+         "bundleIdentifier": "com.askakasha.askakasha",
+         "buildNumber": "1"
+       }
+     }
+   }
+   ```
 
-This helps verify your configuration is working correctly.
+### 2. iOS Build Process
 
-## Production Deployment Considerations
+1. **Clean and Rebuild**
+   ```bash
+   cd packages/vo-frontend
+   
+   # Clean previous builds
+   rm -rf ios
+   npx expo prebuild --platform ios --clean
+   
+   # Open in Xcode
+   open ios/AskAkasha.xcworkspace
+   ```
 
-### Performance Optimization
+2. **Xcode Configuration**
+   - Select "AskAkasha" target
+   - Choose "Any iOS Device" or simulator
+   - Product → Build (⌘+B)
 
-#### For Semantic Search
-- **Memory Usage**: Semantic search uses larger chunks (2000 chars) which may increase memory usage
-- **Processing Time**: Semantic chunking takes longer than standard chunking
-- **Recommendation**: Start with `USE_SEMANTIC_SEARCH=false` and enable after testing
+3. **Archive and Distribute**
+   - Product → Archive
+   - Distribute App → App Store Connect
+   - Follow TestFlight submission process
 
-#### For Document Deletion
-- **MongoDB Performance**: Individual deletions use `deleteMany()` queries which are efficient
-- **Index Optimization**: Ensure `metadata.source` is indexed for fast deletion queries
-- **Batch Operations**: Consider batching deletions for large document sets
+### 3. Version Management
 
-### Environment-Specific Configuration
+For each new release:
 
-RAG configuration is now managed through the API/UI system rather than environment variables. You can set different configurations for different environments using the configuration endpoints:
+1. **Update Version Numbers**
+   
+   In `packages/vo-frontend/app.json`:
+   ```json
+   {
+     "expo": {
+       "version": "1.0.1",        // App version
+       "ios": {
+         "buildNumber": "2"       // Build number (increment each build)
+       }
+     }
+   }
+   ```
 
-#### Development Configuration
-```bash
-curl -X POST http://localhost:3002/api/config/rag \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ragSearchLimit": 5,
-    "similarityThreshold": 0.6,
-    "chunkSize": 800,
-    "chunkOverlap": 150,
-    "useSemanticSearch": false
-  }'
-```
+2. **Commit and Push**
+   ```bash
+   git add packages/vo-frontend/app.json
+   git commit -m "Bump version to 1.0.1"
+   git push origin feature/VO-single-collection
+   ```
 
-#### Production Configuration
-```bash
-curl -X POST http://localhost:3002/api/config/rag \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ragSearchLimit": 10,
-    "similarityThreshold": 0.7,
-    "chunkSize": 1200,
-    "chunkOverlap": 300,
-    "useSemanticSearch": true
-  }'
-```
+3. **Rebuild in Xcode**
+   - Clean build folder (⌘+Shift+K)
+   - Product → Archive
+   - Distribute to App Store Connect
 
-#### High-Volume Configuration
-```bash
-curl -X POST http://localhost:3002/api/config/rag \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ragSearchLimit": 15,
-    "similarityThreshold": 0.75,
-    "chunkSize": 1500,
-    "chunkOverlap": 400,
-    "useSemanticSearch": true
-  }'
-```
+## Deployment Workflow
 
-### Monitoring and Logging
+### For Backend Changes
+1. **Make changes** to `packages/vo-backend/`
+2. **Commit and push** to `feature/VO-single-collection`
+3. **Railway auto-deploys** (no manual action needed)
 
-#### Key Metrics to Monitor
-- **Search Response Time**: Monitor RAG query performance
-- **Document Processing Time**: Track upload and chunking performance
-- **Memory Usage**: Watch for memory spikes during semantic processing
-- **MongoDB Query Performance**: Monitor vector search and deletion operations
+### For Frontend Changes
+1. **Make changes** to `packages/vo-frontend/`
+2. **Update version** in `app.json` (if needed)
+3. **Commit and push** to `feature/VO-single-collection`
+4. **Rebuild in Xcode** → Archive → Submit to TestFlight
 
-#### Logging Configuration
-The system provides detailed logging for:
-- Document upload and processing
-- Search operations and results
-- Configuration changes
-- Error handling and debugging
+## Environment-Specific Configuration
 
-### Security Considerations
+### Development
+- **Backend**: `http://localhost:3002`
+- **Frontend**: `http://localhost:8081`
+- **Database**: Local MongoDB or Atlas
 
-#### API Endpoints
-- **Document Deletion**: Ensure proper authorization for delete operations
-- **Configuration Updates**: Restrict access to RAG configuration endpoints
-- **File Uploads**: Validate file types and sizes (10MB limit)
+### Production
+- **Backend**: Railway domain
+- **Frontend**: TestFlight/App Store
+- **Database**: MongoDB Atlas
 
-#### MongoDB Security
-- **Network Access**: Configure IP whitelist in MongoDB Atlas
-- **Database Users**: Use least-privilege database users
+## Monitoring and Maintenance
+
+### Railway Backend
+- **Logs**: Available in Railway dashboard
+- **Metrics**: CPU, memory, response times
+- **Health Checks**: Built-in health endpoints
+
+### TestFlight
+- **Crash Reports**: Available in App Store Connect
+- **Test Feedback**: From beta testers
+- **Analytics**: App Store Connect analytics
+
+### MongoDB Atlas
+- **Performance**: Query performance monitoring
+- **Storage**: Database size and growth
+- **Indexes**: Vector search index performance
+
+## Troubleshooting
+
+### Backend Issues
+- **Check Railway logs** for error messages
+- **Verify environment variables** are set correctly
+- **Test API endpoints** with curl or Postman
+- **Check MongoDB connection** and indexes
+
+### Frontend Issues
+- **Check Xcode build logs** for compilation errors
+- **Verify API URL** in environment variables
+- **Test on simulator** before TestFlight
+- **Check bundle identifier** matches App Store Connect
+
+### Common Issues
+- **CORS errors**: Check `CORS_ORIGIN` environment variable
+- **MongoDB connection**: Verify connection string and network access
+- **Build failures**: Clean Xcode build folder and rebuild
+- **Version conflicts**: Ensure version numbers are incremented
+
+## Security Considerations
+
+### Backend Security
+- **JWT secrets**: Use strong, unique secrets
+- **CORS**: Restrict to known origins
+- **Rate limiting**: Implement API rate limiting
+- **Input validation**: Validate all API inputs
+
+### Frontend Security
+- **API keys**: Never commit API keys to repository
+- **Environment variables**: Use `.env` files (gitignored)
+- **Code signing**: Ensure proper iOS code signing
+
+### Database Security
+- **Network access**: Restrict MongoDB Atlas to Railway IPs
+- **User permissions**: Use least-privilege database users
 - **Encryption**: Enable encryption in transit and at rest
 
-### Scaling Considerations
+## Scaling Considerations
 
-#### Horizontal Scaling
-- **Stateless Backend**: The backend is stateless and can be scaled horizontally
-- **MongoDB Atlas**: Automatically handles database scaling
-- **Load Balancing**: Use load balancer for multiple backend instances
+### Backend Scaling
+- **Railway**: Automatic scaling based on usage
+- **MongoDB Atlas**: Automatic scaling for database
+- **Load balancing**: Multiple Railway instances if needed
 
-#### Vertical Scaling
-- **Memory**: Increase memory for semantic search workloads
-- **CPU**: More CPU cores for parallel document processing
-- **Storage**: Monitor MongoDB storage usage for large document collections
+### Frontend Scaling
+- **TestFlight**: Handles distribution automatically
+- **App Store**: Global distribution
+- **Updates**: Over-the-air updates via Expo
+
+## Support and Maintenance
+
+### Regular Tasks
+- **Monitor Railway usage** and costs
+- **Update dependencies** regularly
+- **Review TestFlight feedback**
+- **Monitor MongoDB performance**
+
+### Emergency Procedures
+- **Backend down**: Check Railway status and logs
+- **Database issues**: Check MongoDB Atlas status
+- **App crashes**: Review crash reports in App Store Connect
+- **Security issues**: Rotate secrets and review access
+
+For additional support, check the project's GitHub issues or contact the development team.
