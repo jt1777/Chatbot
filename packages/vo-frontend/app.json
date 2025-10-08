@@ -4,7 +4,7 @@
     "slug": "ask-akasha-vo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/@AAIcon.png",
+    "icon": "./assets/AAIcon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.askakasha.askakasha",
-      "buildNumber": "1"
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
