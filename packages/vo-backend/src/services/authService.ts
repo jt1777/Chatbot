@@ -223,6 +223,7 @@ export class AuthService {
       userId: user.id,
       orgId: user.orgId!,
       role: user.role!,
+      currentRole: user.role!,
       email: user.email
     });
 
@@ -287,6 +288,7 @@ export class AuthService {
       userId: user.id,
       orgId: user.orgId!,
       role: user.role!,
+      currentRole: user.role!,
       phone: user.phone
     }, '2h'); // 2 hour expiry for clients
 
@@ -631,6 +633,7 @@ export class AuthService {
       userId: user.id,
       orgId: user.orgId!,
       role: user.role!,
+      currentRole: user.role!,
       email: user.email
     });
 
