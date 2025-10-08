@@ -50,7 +50,17 @@ const upload = multer({
   }
 });
 
-app.use(cors());
+// Configure CORS to allow requests from Next.js development server
+app.use(cors({
+  origin: [
+    'http://localhost:3000',  // Next.js development server
+    'https://askakasha-production.up.railway.app',  // Railway production
+    process.env.CORS_ORIGIN || 'http://localhost:3000'  // Environment variable override
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+}));
 app.use(express.json());
 
 // Initialize services (non-blocking, allows guest access even if database is temporarily unavailable)
