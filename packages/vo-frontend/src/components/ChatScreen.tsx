@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -118,6 +119,7 @@ const ChatScreen: React.FC = () => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <View style={{ flex: 1 }}>
           <View style={{ backgroundColor: '#3B82F6', padding: 16 }}>
@@ -126,15 +128,21 @@ const ChatScreen: React.FC = () => {
             </Text>
           </View>
 
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(item, index) => index.toString()}
-            style={{ flex: 1, padding: 8 }}
-            onContentSizeChange={scrollToEnd}
-            onLayout={scrollToEnd}
-          />
+          <ScrollView 
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item, index) => index.toString()}
+              style={{ flex: 1, padding: 8 }}
+              onContentSizeChange={scrollToEnd}
+              onLayout={scrollToEnd}
+            />
+          </ScrollView>
 
           {isLoading && (
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8 }}>

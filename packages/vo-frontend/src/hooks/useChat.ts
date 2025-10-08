@@ -17,6 +17,16 @@ export const useChat = (token: string | null, userId: string | undefined) => {
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [strictMode, setStrictMode] = useState<boolean>(true);
+  
+  // Check if user is a guest
+  const isGuest = user?.role === 'guest' || user?.currentRole === 'guest';
+
+  // Force strict mode for guests
+  useEffect(() => {
+    if (isGuest && !strictMode) {
+      setStrictMode(true);
+    }
+  }, [isGuest, strictMode]);
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
@@ -35,7 +45,7 @@ export const useChat = (token: string | null, userId: string | undefined) => {
       const response = await axios.post(API_ENDPOINTS.CHAT, {
         message: userMessage.text,
         userId: userId || 'web-user',
-        useRAG: strictMode,
+        useRAG: isGuest ? true : strictMode, // Force RAG for guests
       }, {
         headers: {
           'ngrok-skip-browser-warning': 'true',
@@ -91,6 +101,13 @@ export const useChat = (token: string | null, userId: string | undefined) => {
     setStrictMode(true);
   }, []);
 
+  // Wrapper for setStrictMode that prevents guests from changing mode
+  const handleSetStrictMode = useCallback((value: boolean) => {
+    if (!isGuest) {
+      setStrictMode(value);
+    }
+  }, [isGuest]);
+
   return {
     // State
     messages,
@@ -100,7 +117,7 @@ export const useChat = (token: string | null, userId: string | undefined) => {
 
     // Actions
     setInput,
-    setStrictMode,
+    setStrictMode: handleSetStrictMode,
     sendMessage,
     clearChat,
     resetChatData,
