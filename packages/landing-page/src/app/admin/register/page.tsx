@@ -1,13 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function AdminRegister() {
-  const router = useRouter()
   const { register } = useAuth()
   const [formData, setFormData] = useState({
     email: '',
@@ -50,8 +48,8 @@ export default function AdminRegister() {
               
               // Registration successful - show email verification message
               setSuccess(true)
-            } catch (err: any) {
-              setError(err.message || 'Registration failed. Please try again.')
+            } catch (err: unknown) {
+              setError((err as Error).message || 'Registration failed. Please try again.')
             } finally {
               setIsLoading(false)
             }
@@ -71,7 +69,7 @@ export default function AdminRegister() {
               Check Your Email
             </h2>
             <p className="mt-2 text-center text-sm text-gray-600">
-              We've sent a verification email to <strong>{formData.email}</strong>. 
+              We&apos;ve sent a verification email to <strong>{formData.email}</strong>. 
               Please check your inbox and click the verification link to activate your account.
             </p>
             <div className="mt-6">
@@ -84,7 +82,7 @@ export default function AdminRegister() {
             </div>
             <div className="mt-4">
               <p className="text-xs text-gray-500">
-                Didn't receive the email? Check your spam folder or{' '}
+                Didn&apos;t receive the email? Check your spam folder or{' '}
                 <button
                   onClick={() => {
                     setSuccess(false)

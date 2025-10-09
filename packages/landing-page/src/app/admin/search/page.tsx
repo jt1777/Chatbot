@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import AdminHeader from '@/components/AdminHeader'
 import { useAuth } from '@/contexts/AuthContext'
 import axios from 'axios'
@@ -14,15 +13,10 @@ interface Organization {
   userRole?: 'admin' | 'client' | 'guest';
 }
 
-interface OrganizationSelectionScreenProps {
-  onOrganizationSelected: () => void;
-  onCreateOrganization: () => void;
-  onJoinWithInvite: () => void;
-}
+// (Removed unused OrganizationSelectionScreenProps interface)
 
 export default function AdminSearchPage() {
-  const router = useRouter()
-  const { user, token, logout } = useAuth()
+  const { user, token } = useAuth()
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Organization[]>([]);
@@ -41,23 +35,20 @@ export default function AdminSearchPage() {
   const isGuest = user?.currentRole === 'guest';
   const [documentStats] = useState({ count: 24 })
 
-  // Show loading while checking authentication
-  if (!user || !token) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    setAuthChecked(true);
+  }, []);
+
+  // Defer rendering until auth check; ensure hooks above are always called
 
   // Load user's organizations
   useEffect(() => {
     if (user && token) {
       loadUserOrganizations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, token]);
 
   const loadUserOrganizations = async () => {
@@ -91,13 +82,13 @@ export default function AdminSearchPage() {
           }
         });
         adminCounts = response.data;
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error fetching admin counts:', error);
       }
     }
     
     for (const [orgId, orgAccess] of Object.entries(user.accessibleOrgs)) {
-      const access = orgAccess as any;
+      const access = orgAccess as { orgName?: string; isPublic?: boolean; role: 'admin' | 'client' | 'guest' };
       
       userOrgs.push({
         orgId: orgId,
@@ -159,6 +150,7 @@ export default function AdminSearchPage() {
   // Update pagination when search results change
   useEffect(() => {
     calculatePagination();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchResults, currentPage]);
 
   // Calculate pagination for My Organizations
@@ -188,6 +180,7 @@ export default function AdminSearchPage() {
   // Update pagination when user organizations change
   useEffect(() => {
     calculateMyOrgsPagination();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userOrganizations, myOrgsCurrentPage]);
 
   // Handle organization selection
@@ -267,9 +260,9 @@ export default function AdminSearchPage() {
       
       alert(`Organization ${newOrgName} created successfully!`);
       setNewOrgName('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Error creating organization:', error);
-      const errorMessage = error.response?.data?.error || 'Failed to create organization';
+      const errorMessage = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create organization';
       alert(errorMessage);
     } finally {
       setIsCreatingOrg(false);

@@ -153,6 +153,10 @@ export class AuthService {
       const finalOrgId = orgId || this.generateOrgId();
       const inviteCode = this.generateInviteCode();
 
+      // Generate email verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
       // Create admin user with organization info
       const user: User = {
         id: userId,
@@ -164,6 +168,9 @@ export class AuthService {
         isPublic: true,
         inviteCode,
         adminCount: 1,
+        isEmailVerified: false,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpires: verificationExpires,
         createdAt: new Date(),
         updatedAt: new Date()
       } as any;
@@ -180,24 +187,30 @@ export class AuthService {
 
       await this.usersCollection.insertOne(user);
 
-      // Generate JWT token
-      const token = this.generateToken({
-        userId: user.id,
-        orgId: user.orgId!,
-        role: user.role!,
-        email: user.email
-      });
+      // Send verification email
+      try {
+        await this.emailService.sendVerificationEmail({
+          email: user.email!,
+          verificationToken: verificationToken,
+          userName: user.email!.split('@')[0] // Use email prefix as name
+        });
+      } catch (error) {
+        console.error('Failed to send verification email:', error);
+        // Don't fail registration if email sending fails
+      }
 
+      // Return success response without token (user needs to verify email first)
       return {
-        token,
+        token: '', // No token until email is verified
         user: {
           id: user.id,
           orgId: user.orgId!,
           role: user.role!,
           email: user.email,
           orgName: user.orgName,
-          organizations: (user as any).organizations
-        }
+          organizations: (user as any).organizations,
+          isEmailVerified: false
+        } as any
       };
     }
   }

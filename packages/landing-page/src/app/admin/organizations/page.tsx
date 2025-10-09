@@ -274,10 +274,10 @@ export default function AdminOrganizationsPage() {
           <h4 className="text-sm font-semibold text-blue-800 mb-2">How it works:</h4>
           <div className="text-sm text-blue-800 leading-5">
             1. Enter the email address of the person you want to invite as a client<br/>
-            2. Click "Create Client Invite" to generate an invite code<br/>
+            2. Click &quot;Create Client Invite&quot; to generate an invite code<br/>
             3. Share the invite code with the person<br/>
-            4. They can use the "By Invitation" tab to enter the code and register<br/>
-            5. Once registered, they'll have client access to your organization
+            4. They can use the &quot;By Invitation&quot; tab to enter the code and register<br/>
+            5. Once registered, they&apos;ll have client access to your organization
           </div>
         </div>
       </div>

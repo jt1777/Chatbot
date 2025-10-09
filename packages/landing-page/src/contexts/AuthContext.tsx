@@ -24,7 +24,7 @@ interface AuthContextType {
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   logout: () => void;
-  apiCall: (endpoint: string, options?: RequestInit) => Promise<any>;
+  apiCall: (endpoint: string, options?: RequestInit) => Promise<unknown>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)

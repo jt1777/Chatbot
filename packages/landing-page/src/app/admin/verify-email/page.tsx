@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 
-export default function VerifyEmail() {
+function VerifyEmailInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { verifyEmail } = useAuth()
@@ -19,6 +19,7 @@ export default function VerifyEmail() {
     if (token) {
       handleVerification()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const handleVerification = async () => {
@@ -38,8 +39,8 @@ export default function VerifyEmail() {
       setTimeout(() => {
         router.push('/admin/search')
       }, 3000)
-    } catch (err: any) {
-      setError(err.message || 'Email verification failed')
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Email verification failed')
     } finally {
       setIsLoading(false)
     }
@@ -145,5 +146,13 @@ export default function VerifyEmail() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function VerifyEmail() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8"><p>Loading...</p></div>}>
+      <VerifyEmailInner />
+    </Suspense>
   )
 }

@@ -52,7 +52,7 @@ export default function ContactPage() {
             </div>
             <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Thank you!</h2>
             <p className="mt-2 text-sm text-gray-600">
-              We've received your message and will get back to you soon.
+              We&apos;ve received your message and will get back to you soon.
             </p>
             <div className="mt-6">
               <Link
@@ -74,7 +74,7 @@ export default function ContactPage() {
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Contact us</h2>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            Have questions about Ask Akasha? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+            Have questions about Ask Akasha? We&apos;d love to hear from you. Send us a message and we&apos;ll respond as soon as possible.
           </p>
         </div>
         <div className="mx-auto mt-16 max-w-2xl sm:mt-20">

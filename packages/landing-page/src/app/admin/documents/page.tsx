@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminHeader from '@/components/AdminHeader'
 import AdminDocumentManagement from '@/components/AdminDocumentManagement'
@@ -17,6 +17,23 @@ interface Document {
   chunksCount: number;
 }
 
+interface ApiDocument {
+  _id?: string;
+  source: string;
+  type: 'upload' | 'web';
+  filename?: string;
+  url?: string;
+  uploadDate?: string;
+  createdAt?: string;
+  chunksCount?: number;
+  chunkCount?: number;
+}
+
+interface DocumentsStatsResponse {
+  count?: number;
+  documents?: ApiDocument[];
+}
+
 export default function AdminDocumentsPage() {
   const router = useRouter()
   const { user, token, apiCall, logout: apiLogout } = useAuth()
@@ -25,6 +42,41 @@ export default function AdminDocumentsPage() {
     documents: [] as Document[]
   })
   const [isLoading, setIsLoading] = useState(true)
+
+  const loadDocumentStats = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const stats = await apiCall(API_ENDPOINTS.DOCUMENTS_STATS) as DocumentsStatsResponse
+      // Transform the stats to match our interface
+      const documents: Document[] = stats.documents?.map((doc: ApiDocument) => ({
+        _id: doc._id || doc.source,
+        source: doc.source,
+        type: doc.type,
+        filename: doc.filename,
+        url: doc.url,
+        uploadDate: doc.uploadDate || doc.createdAt || '',
+        chunksCount: (doc.chunksCount ?? doc.chunkCount) ?? 0
+      })) || []
+      setDocumentStats({
+        count: stats.count || 0,
+        documents
+      })
+    } catch (error: unknown) {
+      console.error('Failed to load document stats:', error)
+      // If it's an authentication error, redirect to login
+      if ((error as Error).message.includes('Session expired') || (error as Error).message.includes('No authentication token')) {
+        router.push('/admin/login')
+        return
+      }
+      // Set empty stats on other errors
+      setDocumentStats({
+        count: 0,
+        documents: []
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [apiCall, router])
 
   useEffect(() => {
     if (!user || !token) {
@@ -35,46 +87,7 @@ export default function AdminDocumentsPage() {
     }
     
     loadDocumentStats()
-  }, [user, token, router])
-
-  const loadDocumentStats = async () => {
-    try {
-      setIsLoading(true)
-      const stats = await apiCall(API_ENDPOINTS.DOCUMENTS_STATS)
-      
-      // Transform the stats to match our interface
-      const documents: Document[] = stats.documents?.map((doc: any) => ({
-        _id: doc._id || doc.source,
-        source: doc.source,
-        type: doc.type,
-        filename: doc.filename,
-        url: doc.url,
-        uploadDate: doc.uploadDate || doc.createdAt,
-        chunksCount: doc.chunksCount || doc.chunkCount || 0
-      })) || []
-      
-      setDocumentStats({
-        count: stats.count || 0,
-        documents
-      })
-    } catch (error: any) {
-      console.error('Failed to load document stats:', error)
-      
-      // If it's an authentication error, redirect to login
-      if (error.message.includes('Session expired') || error.message.includes('No authentication token')) {
-        router.push('/admin/login')
-        return
-      }
-      
-      // Set empty stats on other errors
-      setDocumentStats({
-        count: 0,
-        documents: []
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [user, token, router, loadDocumentStats])
 
   const handleFileUpload = async (files: File[]) => {
     try {
@@ -110,7 +123,7 @@ export default function AdminDocumentsPage() {
       
       // Reload document stats to get updated data
       await loadDocumentStats()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Upload error:', error)
       throw error
     }
@@ -149,7 +162,7 @@ export default function AdminDocumentsPage() {
       
       // Reload document stats to get updated data
       await loadDocumentStats()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Scraping error:', error)
       throw error
     }

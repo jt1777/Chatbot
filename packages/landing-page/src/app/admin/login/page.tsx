@@ -38,8 +38,8 @@ export default function AdminLogin() {
       await login(email, password)
       // Redirect to search page (main admin interface)
       router.push('/admin/search')
-    } catch (err: any) {
-      const errorMessage = err.message || 'Invalid email or password. Please try again.'
+    } catch (err: unknown) {
+      const errorMessage = (err as Error).message || 'Invalid email or password. Please try again.'
       setError(errorMessage)
       
       // Check if it's an email verification error
@@ -64,8 +64,8 @@ export default function AdminLogin() {
       await resendVerification(email)
       setSuccess('Verification email sent! Please check your inbox.')
       setShowResendVerification(false)
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend verification email')
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to resend verification email')
     } finally {
       setIsLoading(false)
     }
@@ -79,7 +79,7 @@ export default function AdminLogin() {
             Admin Dashboard
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to manage your organization's knowledge base
+            Sign in to manage your organization&apos;s knowledge base
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -165,7 +165,7 @@ export default function AdminLogin() {
               href="/admin/register"
               className="font-medium text-indigo-600 hover:text-indigo-500"
             >
-              Don't have an account? Create one
+              Don&apos;t have an account? Create one
             </Link>
           </div>
 
