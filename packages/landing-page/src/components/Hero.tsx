@@ -26,8 +26,8 @@ export default function Hero() {
   const slides = [
     {
       image: '/hero3.jpeg',
-      title: 'Create & Search Organizations',
-      description: 'Easily create and manage multiple organizations, then search through your knowledge base with powerful AI-driven queries.',
+      title: 'Search, Join, or Create Organizations',
+      description: 'Easily create multiple organizations, then share your knowledge base with public or private users.',
       alt: 'AI-powered dashboard with data visualizations'
     },
     {
@@ -63,7 +63,7 @@ export default function Hero() {
         {/* Image Carousel - Full Width */}
         <div className="relative w-full mb-16">
           <div className="relative overflow-hidden bg-gray-100">
-            <div className="relative h-96 sm:h-[500px] lg:h-[600px]">
+                    <div className="relative h-96 sm:h-[400px] lg:h-[450px]">
               <img
                 src={slides[currentSlide].image}
                 alt={slides[currentSlide].alt}
@@ -119,7 +119,7 @@ export default function Hero() {
           </div>
 
           {/* Slide indicators */}
-          <div className="flex justify-center mt-6 space-x-2">
+          <div className="flex justify-center mt-6">
             {slides.map((_, index) => (
               <button
                 key={index}
@@ -128,7 +128,7 @@ export default function Hero() {
                   index === currentSlide 
                     ? 'bg-indigo-600' 
                     : 'bg-gray-300 hover:bg-gray-400'
-                }`}
+                } ${index > 0 ? 'ml-3 sm:ml-2' : ''}`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
@@ -141,8 +141,8 @@ export default function Hero() {
             Build Your AI Knowledge Base
           </h1>
           <p className="mt-6 text-lg leading-8 text-gray-600 max-w-3xl mx-auto">
-            Ask Akasha helps organizations create specialized AI assistants powered by their own documents. 
-            Upload PDFs, web content, and more to build a custom knowledge base that your team can query instantly.
+            Ask Akasha helps individuals and organizations create specialized AI assistants powered by their own documents. 
+            Upload PDF documents and web content to build a custom knowledge base that you or your team can query instantly.
           </p>
         </div>
 
@@ -152,13 +152,13 @@ export default function Hero() {
             href="/admin/login"
             className="rounded-md bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 w-[200px] text-center"
           >
-            Admin Dashboard
+            Admin Login
           </Link>
           <Link
             href="/mobile"
             className="rounded-md border-purple-600 bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-purple-700 hover:border-purple-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 w-[200px] text-center"
           >
-            Download Mobile App
+            Mobile App
           </Link>
         </div>
       </div>

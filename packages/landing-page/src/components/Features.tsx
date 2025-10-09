@@ -10,7 +10,7 @@ import {
 const features = [
   {
     name: 'Document Upload',
-    description: 'Upload PDFs, web pages, and other documents to build your knowledge base. Support for multiple formats and automatic text extraction.',
+    description: 'Upload PDFs or scan web pages to build your knowledge base. Support for scanned PDFs and automatic text extraction.',
     icon: DocumentTextIcon,
   },
   {
@@ -24,18 +24,18 @@ const features = [
     icon: ShieldCheckIcon,
   },
   {
-    name: 'Team Collaboration',
-    description: 'Create organizations and invite team members. Share knowledge bases across departments and projects.',
+    name: 'Public or Private Organizations',
+    description: 'Create organizations and share with anyone publicly or privately.',
     icon: UserGroupIcon,
   },
   {
     name: 'AI Chat Interface',
-    description: 'Query your knowledge base with natural language. Get instant, accurate answers based on your uploaded documents.',
+    description: 'Get instant, accurate answers based on your uploaded documents on Strict Mode or query AI on General Mode for a broader response.',
     icon: ChatBubbleLeftRightIcon,
   },
   {
     name: 'Admin Dashboard',
-    description: 'Comprehensive admin panel to manage documents, users, organizations, and system settings. Full control at your fingertips.',
+    description: 'Comprehensive admin panel to manage documents, users, organizations, and search settings.',
     icon: CogIcon,
   },
 ]
@@ -45,12 +45,12 @@ export default function Features() {
         <div className="pt-16 pb-8 sm:pt-20 sm:pb-12">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl lg:text-center">
-          <h2 className="text-base font-semibold leading-7 text-indigo-600">Everything you need</h2>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+          <h2 className="text-xl font-semibold leading-7 text-indigo-600">Everything you need</h2>
+          <p className="mt-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Powerful features for knowledge management
           </p>
           <p className="mt-6 text-lg leading-8 text-gray-600">
-            Ask Akasha provides all the tools you need to build, manage, and query your organization's knowledge base with AI-powered insights.
+            Ask Akasha provides all the tools you need to build, manage, and query your knowledge base with AI-powered insights.
           </p>
         </div>
         <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-4xl">

@@ -13,7 +13,6 @@ export default function AdminRegister() {
     email: '',
     password: '',
     confirmPassword: '',
-    organizationName: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -46,7 +45,7 @@ export default function AdminRegister() {
     }
 
     try {
-      await register(formData.email, formData.password, formData.organizationName)
+      await register(formData.email, formData.password)
       
       // Registration successful, redirect to admin interface
       router.push('/admin/search')
@@ -65,7 +64,7 @@ export default function AdminRegister() {
             Create Admin Account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Set up your organization's knowledge base
+            Create your admin account to manage organizations and knowledge bases
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -83,22 +82,6 @@ export default function AdminRegister() {
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="admin@yourcompany.com"
                 value={formData.email}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700">
-                Organization Name
-              </label>
-              <input
-                id="organizationName"
-                name="organizationName"
-                type="text"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Your Company Inc."
-                value={formData.organizationName}
                 onChange={handleChange}
               />
             </div>

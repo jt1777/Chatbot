@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   description: 'Build specialized AI assistants powered by your own documents. Upload PDFs, web content, and more to create a custom knowledge base for your organization.',
   keywords: 'AI, knowledge base, document management, RAG, chatbot, organization, team collaboration',
   authors: [{ name: 'Ask Akasha Team' }],
+  icons: {
+    icon: '/favicon.png',
+  },
   openGraph: {
     title: 'Ask Akasha - AI Knowledge Base Platform',
     description: 'Build specialized AI assistants powered by your own documents.',
@@ -30,6 +33,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.png" type="image/png" />
+      </head>
       <body className={inter.className}>
         <ConditionalNavigation />
         {children}
