@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { MongoClient, Db, Collection, WriteConcern } from 'mongodb';
 import { User, AdminAuthRequest, AdminRegisterRequest, ClientAuthRequest, ClientTokenRequest, AuthResponse, JWTPayload, Organization, CreateInviteRequest, InviteResponse, JoinOrganizationRequest, GuestAuthRequest, SwitchOrganizationResponse, OrganizationMembership } from '@chatbot/shared';
+import EmailService from './emailService';
+import crypto from 'crypto';
 
 // Migration helper for converting old user format to new multi-role format
 
@@ -11,9 +13,11 @@ export class AuthService {
   private usersCollection: Collection<User> | null = null;
   private readonly JWT_SECRET: string;
   private readonly JWT_EXPIRES_IN = '24h';
+  private emailService: EmailService;
 
   constructor() {
     this.JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+    this.emailService = EmailService.getInstance();
   }
 
   async initialize(): Promise<void> {
@@ -216,6 +220,11 @@ export class AuthService {
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
       throw new Error('Invalid email or password');
+    }
+
+    // Check if email is verified
+    if (!(user as any).isEmailVerified) {
+      throw new Error('Please verify your email address before logging in. Check your inbox for a verification email.');
     }
 
     // Generate JWT token
@@ -961,6 +970,10 @@ export class AuthService {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Create new client user with multi-role format
     const userId = this.generateUserId();
     const user: User = {
@@ -972,6 +985,9 @@ export class AuthService {
       organizationAccess: {}, // Empty - user can join organizations later
       currentOrgId: '',
       currentRole: 'client',
+      isEmailVerified: false,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: verificationExpires,
       createdAt: new Date(),
       updatedAt: new Date()
     } as any;
@@ -986,11 +1002,21 @@ export class AuthService {
       throw error;
     }
 
-    // Generate multi-role JWT token
-    const token = this.generateMultiRoleToken(user, '');
+    // Send verification email
+    try {
+      await this.emailService.sendVerificationEmail({
+        email: user.email!,
+        verificationToken: verificationToken,
+        userName: user.email!.split('@')[0] // Use email prefix as name
+      });
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+      // Don't fail registration if email sending fails
+    }
 
+    // Return success response without token (user needs to verify email first)
     return {
-      token,
+      token: '', // No token until email is verified
       user: {
         id: user.id,
         orgId: user.orgId!,
@@ -1006,6 +1032,110 @@ export class AuthService {
         updatedAt: user.updatedAt
       } as any
     };
+  }
+
+  // Verify email address with token
+  async verifyEmail(token: string): Promise<AuthResponse> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find user by verification token
+    const user = await this.usersCollection.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: new Date() } // Token not expired
+    });
+
+    if (!user) {
+      throw new Error('Invalid or expired verification token');
+    }
+
+    // Update user to mark email as verified
+    const updateResult = await this.usersCollection.updateOne(
+      { id: user.id },
+      {
+        $set: {
+          isEmailVerified: true,
+          emailVerificationToken: undefined,
+          emailVerificationExpires: undefined,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      throw new Error('Failed to verify email');
+    }
+
+    // Send welcome email
+    try {
+      await this.emailService.sendWelcomeEmail(user.email!, user.email!.split('@')[0]);
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      // Don't fail verification if welcome email fails
+    }
+
+    // Generate JWT token for verified user
+    const jwtToken = this.generateMultiRoleToken(user, '');
+
+    return {
+      token: jwtToken,
+      user: {
+        id: user.id,
+        orgId: user.orgId!,
+        currentOrgId: user.currentOrgId,
+        role: user.role!,
+        currentRole: user.currentRole,
+        email: user.email,
+        orgName: 'No Organization',
+        orgDescription: 'You can join an organization after logging in',
+        organizationAccess: user.organizationAccess,
+        accessibleOrgs: {},
+        createdAt: user.createdAt,
+        updatedAt: new Date()
+      } as any
+    };
+  }
+
+  // Resend verification email
+  async resendVerificationEmail(email: string): Promise<void> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    // Find user by email
+    const user = await this.usersCollection.findOne({ email: email.trim() });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if ((user as any).isEmailVerified) {
+      throw new Error('Email already verified');
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Update user with new token
+    await this.usersCollection.updateOne(
+      { id: user.id },
+      {
+        $set: {
+          emailVerificationToken: verificationToken,
+          emailVerificationExpires: verificationExpires,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Send verification email
+    await this.emailService.sendVerificationEmail({
+      email: user.email!,
+      verificationToken: verificationToken,
+      userName: user.email!.split('@')[0]
+    });
   }
 
   // Create organization for existing user (makes them admin)

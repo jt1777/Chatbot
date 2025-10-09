@@ -21,6 +21,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   logout: () => void;
   apiCall: (endpoint: string, options?: RequestInit) => Promise<any>;
 }
@@ -105,6 +107,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const data = await response.json()
       
+      // Only store token and user data if token is provided (email verified)
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        
+        setToken(data.token)
+        setUser(data.user)
+      }
+      
+      return data
+    } catch (error) {
+      console.error('Registration error:', error)
+      throw error
+    }
+  }
+
+  const verifyEmail = async (token: string) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.VERIFY_EMAIL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Email verification failed')
+      }
+
+      const data = await response.json()
+      
       // Store token and user data
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
@@ -114,7 +149,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       return data
     } catch (error) {
-      console.error('Registration error:', error)
+      console.error('Email verification error:', error)
+      throw error
+    }
+  }
+
+  const resendVerification = async (email: string) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.RESEND_VERIFICATION, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to resend verification email')
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Resend verification error:', error)
       throw error
     }
   }
@@ -168,6 +225,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isLoading,
     login,
     register,
+    verifyEmail,
+    resendVerification,
     logout,
     apiCall,
   }

@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/auth/admin/login`,
   REGISTER: `${API_BASE_URL}/api/auth/admin/register`,
   VERIFY_EMAIL: `${API_BASE_URL}/api/auth/verify-email`,
+  RESEND_VERIFICATION: `${API_BASE_URL}/api/auth/resend-verification`,
   
   // Document endpoints
   DOCUMENTS_STATS: `${API_BASE_URL}/api/documents/stats`,

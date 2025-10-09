@@ -16,8 +16,9 @@ export default function AdminRegister() {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+        const [isLoading, setIsLoading] = useState(false)
+        const [error, setError] = useState('')
+        const [success, setSuccess] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -44,16 +45,61 @@ export default function AdminRegister() {
       return
     }
 
-    try {
-      await register(formData.email, formData.password)
-      
-      // Registration successful, redirect to admin interface
-      router.push('/admin/search')
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
+            try {
+              await register(formData.email, formData.password)
+              
+              // Registration successful - show email verification message
+              setSuccess(true)
+            } catch (err: any) {
+              setError(err.message || 'Registration failed. Please try again.')
+            } finally {
+              setIsLoading(false)
+            }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              Check Your Email
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              We've sent a verification email to <strong>{formData.email}</strong>. 
+              Please check your inbox and click the verification link to activate your account.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/admin/login"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Go to Login
+              </Link>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">
+                Didn't receive the email? Check your spam folder or{' '}
+                <button
+                  onClick={() => {
+                    setSuccess(false)
+                    setError('')
+                  }}
+                  className="text-indigo-600 hover:text-indigo-500"
+                >
+                  try again
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

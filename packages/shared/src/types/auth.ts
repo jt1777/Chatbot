@@ -32,6 +32,11 @@ export interface User {
   currentOrgId?: string;
   currentRole?: 'admin' | 'client' | 'guest';
   
+  // Email verification fields
+  isEmailVerified?: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  
   createdAt: Date;
   updatedAt: Date;
 }

@@ -278,6 +278,39 @@ app.post('/api/auth/verify', authenticateToken, (req, res) => {
   res.json({ valid: true, user: (req as any).user });
 });
 
+// Email verification endpoints
+app.post('/api/auth/verify-email', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+
+    const result = await authServiceInstance.verifyEmail(token);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Email verification error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    await authServiceInstance.resendVerificationEmail(email);
+    res.json({ message: 'Verification email sent successfully' });
+  } catch (error: any) {
+    console.error('Resend verification error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Get public organizations only
 app.get('/api/orgs/public', async (req, res) => {
   try {

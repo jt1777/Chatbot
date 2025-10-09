@@ -8,19 +8,24 @@ import { useAuth } from '@/contexts/AuthContext'
 
 export default function AdminLogin() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, resendVerification } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showResendVerification, setShowResendVerification] = useState(false)
 
-  // Check for registration success message
+  // Check for registration success message and resend verification
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('registered') === 'true') {
       setSuccess('Account created successfully! Please sign in.')
+    }
+    if (urlParams.get('resend') === 'true') {
+      setShowResendVerification(true)
+      setSuccess('Please enter your email to resend verification.')
     }
   }, [])
 
@@ -34,7 +39,33 @@ export default function AdminLogin() {
       // Redirect to search page (main admin interface)
       router.push('/admin/search')
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password. Please try again.')
+      const errorMessage = err.message || 'Invalid email or password. Please try again.'
+      setError(errorMessage)
+      
+      // Check if it's an email verification error
+      if (errorMessage.includes('verify your email')) {
+        setShowResendVerification(true)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError('Please enter your email address first')
+      return
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      await resendVerification(email)
+      setSuccess('Verification email sent! Please check your inbox.')
+      setShowResendVerification(false)
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend verification email')
     } finally {
       setIsLoading(false)
     }
@@ -103,7 +134,20 @@ export default function AdminLogin() {
           )}
 
           {error && (
-            <div className="text-red-600 text-sm text-center">{error}</div>
+            <div className="text-red-600 text-sm text-center">
+              {error}
+              {showResendVerification && (
+                <div className="mt-2">
+                  <button
+                    onClick={handleResendVerification}
+                    disabled={isLoading}
+                    className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
+                  >
+                    Resend verification email
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           <div>
