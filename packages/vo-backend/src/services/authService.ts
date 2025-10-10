@@ -175,7 +175,7 @@ export class AuthService {
         updatedAt: new Date()
       } as any;
 
-      // Add organizations array
+      // Add organizations array and org access metadata
       (user as any).organizations = [{
         orgId: finalOrgId,
         orgName: orgName || `Organization ${finalOrgId}`,
@@ -184,6 +184,18 @@ export class AuthService {
         role: 'admin',
         joinedAt: new Date()
       }];
+
+      // Set current org/role and accessible orgs for UI
+      (user as any).currentOrgId = finalOrgId;
+      (user as any).currentRole = 'admin';
+      (user as any).accessibleOrgs = {
+        [finalOrgId]: {
+          role: 'admin',
+          orgName: (user as any).orgName,
+          orgDescription: '',
+          isPublic: true
+        }
+      };
 
       await this.usersCollection.insertOne(user);
 
@@ -205,10 +217,13 @@ export class AuthService {
         user: {
           id: user.id,
           orgId: user.orgId!,
+          currentOrgId: (user as any).currentOrgId,
           role: user.role!,
+          currentRole: (user as any).currentRole,
           email: user.email,
           orgName: user.orgName,
           organizations: (user as any).organizations,
+          accessibleOrgs: (user as any).accessibleOrgs,
           isEmailVerified: false
         } as any
       };
@@ -240,12 +255,24 @@ export class AuthService {
       throw new Error('Please verify your email address before logging in. Check your inbox for a verification email.');
     }
 
+    // Ensure current org/role and accessible orgs are present
+    const currentOrgId = (user as any).currentOrgId || user.orgId;
+    const currentRole = (user as any).currentRole || user.role;
+    const accessibleOrgs = (user as any).accessibleOrgs || {
+      [user.orgId!]: {
+        role: user.role!,
+        orgName: user.orgName,
+        orgDescription: '',
+        isPublic: true
+      }
+    };
+
     // Generate JWT token
     const token = this.generateToken({
       userId: user.id,
-      orgId: user.orgId!,
-      role: user.role!,
-      currentRole: user.role!,
+      orgId: currentOrgId!,
+      role: currentRole!,
+      currentRole: currentRole!,
       email: user.email
     });
 
@@ -253,10 +280,13 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        orgId: user.orgId!,
-        role: user.role!,
+        orgId: currentOrgId!,
+        currentOrgId: currentOrgId!,
+        role: currentRole!,
+        currentRole: currentRole!,
         email: user.email,
-        orgName: user.orgName
+        orgName: user.orgName,
+        accessibleOrgs
       }
     };
   }
@@ -1088,22 +1118,36 @@ export class AuthService {
       // Don't fail verification if welcome email fails
     }
 
+    // Ensure org context fields for verified user
+    const currentOrgId = (user as any).currentOrgId || user.orgId;
+    const currentRole = (user as any).currentRole || user.role;
+    const accessibleOrgs = (user as any).accessibleOrgs || {
+      [user.orgId!]: {
+        role: user.role!,
+        orgName: user.orgName,
+        orgDescription: '',
+        isPublic: true
+      }
+    };
+
     // Generate JWT token for verified user
-    const jwtToken = this.generateMultiRoleToken(user, '');
+    const jwtToken = this.generateMultiRoleToken({
+      ...user,
+      currentOrgId,
+      currentRole
+    } as any, '');
 
     return {
       token: jwtToken,
       user: {
         id: user.id,
-        orgId: user.orgId!,
-        currentOrgId: user.currentOrgId,
-        role: user.role!,
-        currentRole: user.currentRole,
+        orgId: currentOrgId!,
+        currentOrgId: currentOrgId!,
+        role: currentRole!,
+        currentRole: currentRole!,
         email: user.email,
-        orgName: 'No Organization',
-        orgDescription: 'You can join an organization after logging in',
-        organizationAccess: user.organizationAccess,
-        accessibleOrgs: {},
+        orgName: user.orgName,
+        accessibleOrgs,
         createdAt: user.createdAt,
         updatedAt: new Date()
       } as any

@@ -3,6 +3,8 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+// MongoDB database names cannot contain spaces. Use DB_NAME to override if needed.
+const DB_NAME = process.env.DB_NAME || 'test';
 
 async function clearDatabase() {
   let client;
@@ -25,7 +27,8 @@ async function clearDatabase() {
     client = new MongoClient(MONGODB_URI, options);
     await client.connect();
     
-    const db = client.db('farsight');
+    const db = client.db(DB_NAME);
+    console.log('🗃️  Target database:', DB_NAME);
     
     console.log('🗑️ Clearing all collections...');
     

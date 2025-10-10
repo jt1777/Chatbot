@@ -1,7 +1,5 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export interface EmailVerificationData {
   email: string;
   verificationToken: string;
@@ -11,6 +9,7 @@ export interface EmailVerificationData {
 export class EmailService {
   private static instance: EmailService;
   private fromEmail: string;
+  private resendClient: Resend | null = null;
 
   constructor() {
     this.fromEmail = process.env.FROM_EMAIL || 'noreply@askakasha.com';
@@ -23,8 +22,28 @@ export class EmailService {
     return EmailService.instance;
   }
 
+  private getResend(): Resend {
+    if (this.resendClient) return this.resendClient;
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY is missing. Set it in environment before sending emails.');
+    }
+    this.resendClient = new Resend(apiKey);
+    return this.resendClient;
+  }
+
   async sendVerificationEmail(data: EmailVerificationData): Promise<void> {
     const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/verify-email?token=${data.verificationToken}`;
+    // Minimal runtime diagnostics to validate env wiring in production
+    const maskedKey = process.env.RESEND_API_KEY ? `${process.env.RESEND_API_KEY.slice(0, 6)}***` : 'missing';
+    console.log(
+      '[EmailService] Preparing verification email',
+      {
+        fromEmail: this.fromEmail,
+        resendKey: maskedKey,
+        verificationUrl
+      }
+    );
     
     const emailHtml = `
       <!DOCTYPE html>
@@ -73,7 +92,7 @@ export class EmailService {
     `;
 
     try {
-      await resend.emails.send({
+      await this.getResend().emails.send({
         from: this.fromEmail,
         to: [data.email],
         subject: 'Verify Your Email - Ask Akasha Admin Account',
@@ -138,7 +157,7 @@ export class EmailService {
     `;
 
     try {
-      await resend.emails.send({
+      await this.getResend().emails.send({
         from: this.fromEmail,
         to: [email],
         subject: 'Welcome to Ask Akasha - Your Account is Verified!',
