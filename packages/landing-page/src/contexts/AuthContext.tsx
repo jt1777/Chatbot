@@ -20,7 +20,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, orgName: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   logout: () => void;
@@ -90,14 +90,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, orgName: string) => {
     try {
       const response = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, orgName }),
       })
 
       if (!response.ok) {

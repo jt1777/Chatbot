@@ -68,7 +68,6 @@ export default function Hero() {
                 src={slides[currentSlide].image}
                 alt={slides[currentSlide].alt}
                 className="absolute inset-0 w-full h-full object-cover"
-                onLoad={() => console.log('Image loaded:', slides[currentSlide].image)}
                 onError={(e) => console.error('Image error:', e, slides[currentSlide].image)}
               />
               {/* <div className="absolute inset-0 bg-black bg-opacity-40" /> */}

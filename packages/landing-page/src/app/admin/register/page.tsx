@@ -11,6 +11,7 @@ export default function AdminRegister() {
     email: '',
     password: '',
     confirmPassword: '',
+    orgName: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -31,6 +32,12 @@ export default function AdminRegister() {
     setError('')
 
     // Validation
+    if (!formData.orgName.trim()) {
+      setError('Organization name is required')
+      setIsLoading(false)
+      return
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
       setIsLoading(false)
@@ -44,7 +51,7 @@ export default function AdminRegister() {
     }
 
             try {
-              await register(formData.email, formData.password)
+              await register(formData.email, formData.password, formData.orgName)
               
               // Registration successful - show email verification message
               setSuccess(true)
@@ -126,6 +133,23 @@ export default function AdminRegister() {
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="admin@yourcompany.com"
                 value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="orgName" className="block text-sm font-medium text-gray-700">
+                Organization Name
+              </label>
+              <input
+                id="orgName"
+                name="orgName"
+                type="text"
+                autoComplete="organization"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                placeholder="Your Company Name"
+                value={formData.orgName}
                 onChange={handleChange}
               />
             </div>
