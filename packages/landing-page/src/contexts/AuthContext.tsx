@@ -20,11 +20,14 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginMultiRole: (email: string, password: string, preferredOrgId?: string) => Promise<void>;
   register: (email: string, password: string, orgName: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   logout: () => void;
   apiCall: (endpoint: string, options?: RequestInit) => Promise<unknown>;
+  switchOrganization: (orgId: string) => Promise<void>;
+  getAccessibleOrganizations: () => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -89,6 +92,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       throw error
     }
   }
+
+  // Multi-role login mirrors vo-frontend
+  const loginMultiRole = async (email: string, password: string, preferredOrgId?: string) => {
+    const response = await fetch(API_ENDPOINTS.MULTI_ROLE_LOGIN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, preferredOrgId })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Login failed');
+    }
+    const data = await response.json();
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
+  };
 
   const register = async (email: string, password: string, orgName: string) => {
     try {
@@ -184,6 +205,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     router.push('/admin/login')
   }
 
+  // Multi-role: switch organization, update token/user
+  const switchOrganization = async (orgId: string) => {
+    if (!token) throw new Error('No authentication token');
+    const response = await fetch(API_ENDPOINTS.MULTI_ROLE_SWITCH_ORG, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ orgId })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to switch organization');
+    }
+    const data = await response.json();
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
+  };
+
+  // Multi-role: get accessible organizations
+  const getAccessibleOrganizations = async () => {
+    if (!token) throw new Error('No authentication token');
+    const response = await fetch(API_ENDPOINTS.MULTI_ROLE_ORGANIZATIONS, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to load organizations');
+    }
+    return response.json();
+  };
+
   const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     if (!token) {
       throw new Error('No authentication token')
@@ -224,11 +277,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     token,
     isLoading,
     login,
+    loginMultiRole,
     register,
     verifyEmail,
     resendVerification,
     logout,
     apiCall,
+    switchOrganization,
+    getAccessibleOrganizations,
   }
 
   return (

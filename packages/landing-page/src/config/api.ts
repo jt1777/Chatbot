@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   // Auth endpoints
   LOGIN: `${API_BASE_URL}/api/auth/admin/login`,
   REGISTER: `${API_BASE_URL}/api/auth/admin/register`,
+  AUTH_VERIFY: `${API_BASE_URL}/api/auth/verify`,
   VERIFY_EMAIL: `${API_BASE_URL}/api/auth/verify-email`,
   RESEND_VERIFICATION: `${API_BASE_URL}/api/auth/resend-verification`,
   
@@ -21,12 +22,19 @@ export const API_ENDPOINTS = {
   ORGANIZATIONS_CREATE: `${API_BASE_URL}/api/organizations/create`,
   ORGANIZATIONS_JOIN: `${API_BASE_URL}/api/organizations/join`,
   ORGANIZATIONS_INVITE: `${API_BASE_URL}/api/organizations/invite`,
+  ORGANIZATIONS_VISIBILITY: `${API_BASE_URL}/api/org/visibility`,
+  ORGANIZATIONS_INFO: `${API_BASE_URL}/api/org/info`,
   
   // Chat endpoints
   CHAT: `${API_BASE_URL}/api/chat`,
   
   // Search endpoints
   SEARCH: `${API_BASE_URL}/api/search`,
+
+  // Multi-role endpoints
+  MULTI_ROLE_ORGANIZATIONS: `${API_BASE_URL}/api/auth/multi-role/organizations`,
+  MULTI_ROLE_SWITCH_ORG: `${API_BASE_URL}/api/auth/multi-role/switch-organization`,
+  MULTI_ROLE_LOGIN: `${API_BASE_URL}/api/auth/multi-role/login`,
 }
 
 export const getAuthHeaders = (token: string) => ({

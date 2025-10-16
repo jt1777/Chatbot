@@ -71,9 +71,31 @@ authServiceInstance.initialize().catch(console.error);
 VectorStoreService.resetInstance();
 // VectorStoreService is now initialized by RAG service when needed
 
-app.get('/', (req, res) => {
-  res.send('Backend running');
+// Minimal request logger
+app.use((req, _res, next) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const hasAuth = !!authHeader;
+    console.log(`[REQ] ${req.method} ${req.path} q=${JSON.stringify(req.query)} bodyKeys=${Object.keys(req.body || {})} auth=${hasAuth}`);
+  } catch {}
+  next();
 });
+
+// Debug endpoint to check what users exist
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    // Use the public getOrganizations method to see what it finds
+    const orgs = await authServiceInstance.getOrganizations();
+    res.json({ 
+      message: 'Debug: getOrganizations() result',
+      organizationCount: orgs.length,
+      organizations: orgs
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Admin authentication endpoints
 app.post('/api/auth/admin/register', async (req, res) => {
@@ -256,16 +278,24 @@ app.post('/api/client/join-organization', authenticateToken, async (req, res) =>
 // Get organizations for client selection
 app.get('/api/orgs', async (req, res) => {
   try {
-    const orgs = await authServiceInstance.getOrganizations();
-    res.json(orgs);
+    console.log('[ORG] list requested');
+    const modern = await authServiceInstance.getOrganizations();
+    const legacy = await (authServiceInstance as any).getLegacyOrganizations();
+
+    // Merge by orgId, prefer modern entry; if only legacy exists, include it
+    const mergedMap: { [id: string]: { orgId: string; name: string; adminCount: number; isPublic?: boolean } } = {};
+    for (const o of legacy) mergedMap[o.orgId] = o;
+    for (const o of modern) mergedMap[o.orgId] = o;
+    const merged = Object.values(mergedMap).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json(merged);
   } catch (error: any) {
     console.error('Get organizations error:', error);
     
-    // Provide more helpful error messages
     if (error.message === 'Auth service not initialized') {
       res.status(503).json({ 
         error: 'Database connection unavailable. Please try again in a moment.',
-        organizations: [] // Return empty array as fallback
+        organizations: []
       });
     } else {
       res.status(500).json({ error: error.message });
@@ -314,23 +344,15 @@ app.post('/api/auth/resend-verification', async (req, res) => {
 // Get public organizations only
 app.get('/api/orgs/public', async (req, res) => {
   try {
-    const allOrgs = await authServiceInstance.getOrganizations();
-    
-    // console.log('🔍 All organizations:', allOrgs.map(org => ({ 
-    //   name: org.name, 
-    //   orgId: org.orgId, 
-    //   isPublic: org.isPublic 
-    // })));
-    
-    // Filter for public organizations only
-    const publicOrgs = allOrgs.filter(org => org.isPublic === true);
-    
-    // console.log('🔍 Public organizations:', publicOrgs.map(org => ({ 
-    //   name: org.name, 
-    //   orgId: org.orgId, 
-    //   isPublic: org.isPublic 
-    // })));
-    
+    console.log('[ORG] public list requested');
+    const modern = await authServiceInstance.getOrganizations();
+    const legacy = await (authServiceInstance as any).getLegacyOrganizations();
+    const mergedMap: { [id: string]: { orgId: string; name: string; adminCount: number; isPublic?: boolean } } = {};
+    for (const o of legacy) mergedMap[o.orgId] = o;
+    for (const o of modern) mergedMap[o.orgId] = o;
+    const merged = Object.values(mergedMap);
+    // Respect explicit false; only include when true
+    const publicOrgs = merged.filter(org => org.isPublic === true).sort((a, b) => a.name.localeCompare(b.name));
     res.json(publicOrgs);
   } catch (error: any) {
     console.error('Get public organizations error:', error);
@@ -349,6 +371,7 @@ app.get('/api/orgs/public', async (req, res) => {
 // Search organizations by name
 app.get('/api/orgs/search', async (req, res) => {
   try {
+    console.log('[ORG] search requested', { q: req.query.q });
     const query = req.query.q as string;
     const allOrgs = await authServiceInstance.getOrganizations();
     
@@ -434,14 +457,26 @@ app.get('/api/auth/multi-role/organizations', authenticateToken, async (req, res
     if (!userData) {
       return res.status(404).json({ error: 'User not found' });
     }
+    // Normalize to multi-role shape without relying on migration helper
+    const normalizedUser: any = { ...userData } as any;
+    if (!normalizedUser.organizationAccess) {
+      normalizedUser.organizationAccess = {};
+      if ((userData as any).orgId) {
+        normalizedUser.organizationAccess[(userData as any).orgId] = {
+          role: (userData as any).role || 'guest',
+          orgName: (userData as any).orgName || (userData as any).orgId,
+          orgDescription: (userData as any).orgDescription || '',
+          isPublic: (userData as any).isPublic !== false
+        };
+      }
+    }
+    normalizedUser.currentOrgId = normalizedUser.currentOrgId || (userData as any).currentOrgId || (userData as any).orgId || '';
+    normalizedUser.currentRole = normalizedUser.currentRole || (userData as any).currentRole || (userData as any).role || 'guest';
 
-    // Migrate user if needed
-    const migratedUser = await (authService as any).migrateUserToMultiRole(userData);
-    
     const accessibleOrgs: { [orgId: string]: { role: 'admin' | 'client' | 'guest'; orgName: string; orgDescription?: string; isPublic?: boolean } } = {};
     
-    if (migratedUser.organizationAccess) {
-      for (const [orgId, access] of Object.entries(migratedUser.organizationAccess)) {
+    if (normalizedUser.organizationAccess) {
+      for (const [orgId, access] of Object.entries(normalizedUser.organizationAccess)) {
         const org = await authService.getOrganization(orgId);
         if (org) {
           accessibleOrgs[orgId] = {
@@ -455,8 +490,8 @@ app.get('/api/auth/multi-role/organizations', authenticateToken, async (req, res
     }
 
     res.json({
-      currentOrgId: migratedUser.currentOrgId,
-      currentRole: migratedUser.currentRole,
+      currentOrgId: normalizedUser.currentOrgId,
+      currentRole: normalizedUser.currentRole,
       accessibleOrgs: accessibleOrgs
     });
   } catch (error: any) {
@@ -578,6 +613,7 @@ app.put('/api/org/description', authenticateToken, requireOrgAdmin, async (req, 
 // Update organization visibility (public/private)
 app.put('/api/org/visibility', authenticateToken, requireOrgAdmin, async (req, res) => {
   try {
+    console.log('[ORG] visibility update requested', { body: req.body });
     const user = (req as any).user;
     const { isPublic } = req.body;
 
@@ -598,7 +634,7 @@ app.put('/api/org/visibility', authenticateToken, requireOrgAdmin, async (req, r
 // Get admin counts for user's accessible organizations
 app.get('/api/user/org-admin-counts', authenticateToken, requireUser, async (req, res) => {
   try {
-    console.log('🔍 Admin counts endpoint called');
+    console.log('[ORG] admin-counts requested', { orgIds: req.query.orgIds });
     const user = (req as any).user;
     const { orgIds } = req.query;
     

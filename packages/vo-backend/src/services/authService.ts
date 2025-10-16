@@ -132,6 +132,9 @@ export class AuthService {
         email: existingAdmin.email
       });
 
+      // Build legacy accessibleOrgs from organizationAccess if present
+      const legacyAccessibleOrgs: any = this.buildLegacyAccessibleOrgs((existingAdmin as any).organizationAccess);
+
       return {
         token,
         user: {
@@ -140,7 +143,8 @@ export class AuthService {
           role: existingAdmin.role!,
           email: existingAdmin.email,
           orgName: orgName || `Organization ${finalOrgId}`,
-          organizations: updatedOrganizations
+          organizations: updatedOrganizations,
+          accessibleOrgs: legacyAccessibleOrgs
         }
       };
     } else {
@@ -188,7 +192,7 @@ export class AuthService {
       // Set current org/role and accessible orgs for UI
       (user as any).currentOrgId = finalOrgId;
       (user as any).currentRole = 'admin';
-      (user as any).accessibleOrgs = {
+      (user as any).organizationAccess = {
         [finalOrgId]: {
           role: 'admin',
           orgName: (user as any).orgName,
@@ -212,6 +216,9 @@ export class AuthService {
       }
 
       // Return success response without token (user needs to verify email first)
+      // Build legacy accessibleOrgs from organizationAccess for response compatibility
+      const legacyAccessibleOrgsNew: any = this.buildLegacyAccessibleOrgs((user as any).organizationAccess);
+
       return {
         token: '', // No token until email is verified
         user: {
@@ -223,7 +230,7 @@ export class AuthService {
           email: user.email,
           orgName: user.orgName,
           organizations: (user as any).organizations,
-          accessibleOrgs: (user as any).accessibleOrgs,
+          accessibleOrgs: legacyAccessibleOrgsNew,
           isEmailVerified: false
         } as any
       };
@@ -408,9 +415,12 @@ export class AuthService {
     })));
 
     // Clean approach: get organizations from organizationAccess field only
+    // Also include users who might have admin role in organizationAccess but not at top level
     const multiRoleAdminUsers = await this.usersCollection.find({
-      role: 'admin',
-      organizationAccess: { $exists: true }
+      $or: [
+        { role: 'admin', organizationAccess: { $exists: true } },
+        { 'organizationAccess': { $exists: true } }
+      ]
     }).toArray();
 
     console.log('🔍 Admin users with organizationAccess:', multiRoleAdminUsers.map(user => ({
@@ -445,12 +455,68 @@ export class AuthService {
 
     console.log('🔍 Organizations from organizationAccess:', orgs);
 
+    // If no organizations found from organizationAccess, fallback to legacy format
+    if (orgs.length === 0) {
+      console.log('🔍 No organizations found in organizationAccess, trying legacy format...');
+      
+      // Get organizations from legacy format (users with orgId, orgName, etc.)
+      const legacyOrgs = adminUsers.map(user => ({
+        orgId: user.orgId!,
+        name: user.orgName || user.orgId!,
+        adminCount: 1, // Legacy users are individual admins
+        isPublic: (user as any).isPublic !== false // Default to true if not set
+      }));
+      
+      console.log('🔍 Organizations from legacy format:', legacyOrgs);
+      return legacyOrgs;
+    }
+
     return orgs.map(org => ({
       orgId: org._id,
       name: org.name || org._id, // Fallback to orgId if orgName is not set
       adminCount: org.adminCount,
       isPublic: org.isPublic !== false // Default to true if not set
     }));
+  }
+
+  private buildLegacyAccessibleOrgs(orgAccess: any): any {
+    const result: any = {};
+    if (!orgAccess) return result;
+    for (const [oid, access] of Object.entries(orgAccess)) {
+      result[oid] = {
+        role: (access as any).role,
+        orgName: (access as any).orgName,
+        orgDescription: (access as any).orgDescription || '',
+        isPublic: (access as any).isPublic !== false
+      };
+    }
+    return result;
+  }
+
+  // Fallback: derive organizations directly from legacy admin users (role/orgId/orgName only)
+  async getLegacyOrganizations(): Promise<{ orgId: string; name: string; adminCount: number; isPublic?: boolean }[]> {
+    if (!this.usersCollection) {
+      throw new Error('Auth service not initialized');
+    }
+
+    const adminUsers = await this.usersCollection.find({ role: 'admin' }).toArray();
+    const byOrg: { [orgId: string]: { orgId: string; name: string; adminCount: number; isPublic?: boolean } } = {};
+
+    for (const admin of adminUsers) {
+      const orgId = (admin as any).orgId;
+      if (!orgId) continue;
+      if (!byOrg[orgId]) {
+        byOrg[orgId] = {
+          orgId,
+          name: (admin as any).orgName || orgId,
+          adminCount: 0,
+          isPublic: (admin as any).isPublic !== false
+        };
+      }
+      byOrg[orgId].adminCount += 1;
+    }
+
+    return Object.values(byOrg).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   private generateToken(payload: Omit<JWTPayload, 'iat' | 'exp'>, expiresIn?: string): string {
@@ -755,7 +821,8 @@ export class AuthService {
         id: orgId,
         name: admin.orgName || orgId,
         description: admin.orgDescription || '',
-        isPublic: (admin as any).isPublic || true,
+        // Respect explicit false; default to true only if undefined
+        isPublic: (admin as any).isPublic === false ? false : true,
         createdAt: admin.createdAt,
         adminCount,
         inviteCode: admin.inviteCode || ''
@@ -786,7 +853,8 @@ export class AuthService {
           id: orgId,
           name: orgMembership.orgName || orgId,
           description: orgMembership.orgDescription || 'No description available',
-          isPublic: (orgMembership as any).isPublic || true,
+          // Respect explicit false in legacy array
+          isPublic: (orgMembership as any).isPublic === false ? false : true,
           createdAt: orgMembership.joinedAt || new Date(),
           adminCount,
           inviteCode: ''

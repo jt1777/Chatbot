@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminHeader from '@/components/AdminHeader'
 import { useAuth } from '@/contexts/AuthContext'
+import { API_ENDPOINTS } from '@/config/api'
 import axios from 'axios'
 
 interface User {
@@ -61,8 +62,44 @@ export default function AdminOrganizationsPage() {
   const [isUpdatingDescription, setIsUpdatingDescription] = useState(false)
   const [userOrganizations, setUserOrganizations] = useState<OrganizationMembership[]>([])
   const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false)
   const [isPublic, setIsPublic] = useState(false)
   const [documentStats] = useState({ count: 24 })
+
+  // Load organization info on component mount
+  useEffect(() => {
+    if (user && token) {
+      loadOrganizationInfo();
+    }
+  }, [user, token]);
+
+  const loadOrganizationInfo = async () => {
+    try {
+      // Prefer backend truth for visibility to avoid stale local state
+      const resp = await fetch(API_ENDPOINTS.ORGANIZATIONS_INFO, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (typeof data.isPublic === 'boolean') {
+          setIsPublic(data.isPublic);
+          return;
+        }
+      }
+      // Fallback to cached user in case backend call fails
+      if (user?.accessibleOrgs && user.currentOrgId) {
+        const currentOrg = user.accessibleOrgs[user.currentOrgId];
+        if (currentOrg && typeof currentOrg.isPublic === 'boolean') {
+          setIsPublic(currentOrg.isPublic);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading organization info:', error);
+    }
+  };
 
   // Show loading while checking authentication
   if (!user || !token) {
@@ -139,14 +176,37 @@ export default function AdminOrganizationsPage() {
   }
 
   const handleTogglePublicPrivate = async () => {
+    if (isUpdatingVisibility) return; // Prevent double-clicks
+    
+    setIsUpdatingVisibility(true);
     try {
-      // TODO: Implement visibility toggle API call
-      console.log('Toggling visibility:', !isPublic)
-      setIsPublic(!isPublic)
-      alert(`Organization is now ${!isPublic ? 'public' : 'private'}`)
-    } catch (error) {
-      console.error('Toggle visibility error:', error)
-      alert('Failed to update visibility. Please try again.')
+      const newVisibility = !isPublic;
+      
+      // Make API call to update organization visibility
+      const response = await fetch(API_ENDPOINTS.ORGANIZATIONS_VISIBILITY, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isPublic: newVisibility })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update organization visibility');
+      }
+
+      // Update local state only after successful API call
+      setIsPublic(newVisibility);
+      
+      // Show success message
+      alert(`Organization is now ${newVisibility ? 'public' : 'private'}`);
+    } catch (error: any) {
+      console.error('Toggle visibility error:', error);
+      alert(`Failed to update visibility: ${error.message}`);
+    } finally {
+      setIsUpdatingVisibility(false);
     }
   }
 
@@ -191,10 +251,11 @@ export default function AdminOrganizationsPage() {
             <button
               className={`flex items-center px-4 py-2 rounded-full text-xs font-semibold ${
                 isPublic ? 'bg-green-500' : 'bg-gray-500'
-              } text-white`}
+              } text-white ${isUpdatingVisibility ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleTogglePublicPrivate}
+              disabled={isUpdatingVisibility}
             >
-              {isPublic ? 'Public' : 'Private'}
+              {isUpdatingVisibility ? 'Updating...' : (isPublic ? 'Public' : 'Private')}
             </button>
           </div>
 

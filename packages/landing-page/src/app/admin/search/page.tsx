@@ -43,13 +43,37 @@ export default function AdminSearchPage() {
 
   // Defer rendering until auth check; ensure hooks above are always called
 
-  // Load user's organizations
+  // Load user's organizations from backend (multi-role)
   useEffect(() => {
-    if (user && token) {
-      loadUserOrganizations();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token]);
+    const fetchAccessibleOrgs = async () => {
+      if (!token) return;
+      try {
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/auth/multi-role/organizations`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!resp.ok) {
+          console.error('Failed to fetch accessible orgs:', resp.status);
+          return;
+        }
+        const data = await resp.json();
+        const accessible = data.accessibleOrgs || {};
+        const orgs: Organization[] = Object.entries(accessible).map(([orgId, access]: any) => ({
+          orgId,
+          name: access.orgName || 'Unknown Organization',
+          adminCount: 0,
+          isPublic: access.isPublic || false,
+          userRole: access.role
+        }));
+        setUserOrganizations(orgs);
+      } catch (e) {
+        console.error('Error loading accessible orgs:', e);
+      }
+    };
+    fetchAccessibleOrgs();
+  }, [token]);
 
   const loadUserOrganizations = async () => {
     if (!user?.accessibleOrgs) {
@@ -186,11 +210,60 @@ export default function AdminSearchPage() {
   // Handle organization selection
   const handleSelectOrganization = async (orgId: string) => {
     try {
-      // TODO: Implement organization switching
-      console.log('Switching to organization:', orgId);
+      if (!token) {
+        alert('You must be logged in to switch organizations.');
+        return;
+      }
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/auth/multi-role/switch-organization`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ orgId })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to switch to organization ${orgId}`);
+      }
+      const data = await resp.json();
+      if (data.token && data.user) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        // Reload to ensure all pages pick up new org context
+        window.location.reload();
+      } else {
+        // Fallback: just refresh organizations
+        await fetchAccessibleOrgsAfterSwitch();
+      }
     } catch (error) {
       console.error('Error switching organization:', error);
+      alert((error as Error).message || 'Failed to switch organization');
     }
+  };
+
+  // Helper to refresh orgs if switch returns no token/user (defensive)
+  const fetchAccessibleOrgsAfterSwitch = async () => {
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/auth/multi-role/organizations`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const accessible = data.accessibleOrgs || {};
+        const orgs: Organization[] = Object.entries(accessible).map(([oid, access]: any) => ({
+          orgId: oid,
+          name: access.orgName || 'Unknown Organization',
+          adminCount: 0,
+          isPublic: access.isPublic || false,
+          userRole: access.role
+        }));
+        setUserOrganizations(orgs);
+      }
+    } catch (_) {}
   };
 
   // Handle organization click - either switch or join based on membership
