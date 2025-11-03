@@ -28,6 +28,7 @@ interface AuthContextType {
   apiCall: (endpoint: string, options?: RequestInit) => Promise<unknown>;
   switchOrganization: (orgId: string) => Promise<void>;
   getAccessibleOrganizations: () => Promise<any>;
+  updateUser: (token: string, user: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -272,6 +273,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return response.json()
   }
 
+  const updateUser = async (newToken: string, newUser: User) => {
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(newUser));
+    setToken(newToken);
+    setUser(newUser);
+  }
+
   const value = {
     user,
     token,
@@ -285,6 +293,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     apiCall,
     switchOrganization,
     getAccessibleOrganizations,
+    updateUser,
   }
 
   return (

@@ -21,7 +21,26 @@ export default function AdminChatPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [strictMode, setStrictMode] = useState(true)
-  const [documentStats] = useState({ count: 24 })
+  const [documentStats, setDocumentStats] = useState<{ count: number }>({ count: 0 })
+
+  useEffect(() => {
+    const loadDocumentStats = async () => {
+      if (!token) return;
+      try {
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/documents/stats`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = typeof data?.totalDocuments === 'number' ? data.totalDocuments : (typeof data?.count === 'number' ? data.count : 0);
+        setDocumentStats({ count });
+      } catch (_) {}
+    };
+    loadDocumentStats();
+  }, [token]);
 
   // Show loading while checking authentication
   if (!user || !token) {

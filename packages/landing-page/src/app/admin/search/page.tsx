@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import AdminHeader from '@/components/AdminHeader'
 import { useAuth } from '@/contexts/AuthContext'
+import { API_ENDPOINTS } from '@/config/api'
+import { toast } from 'react-toastify'
 import axios from 'axios'
 
 interface Organization {
@@ -16,7 +18,7 @@ interface Organization {
 // (Removed unused OrganizationSelectionScreenProps interface)
 
 export default function AdminSearchPage() {
-  const { user, token } = useAuth()
+  const { user, token, updateUser } = useAuth()
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Organization[]>([]);
@@ -33,13 +35,34 @@ export default function AdminSearchPage() {
   const itemsPerPage = 5;
 
   const isGuest = user?.currentRole === 'guest';
-  const [documentStats] = useState({ count: 24 })
+  const [documentStats, setDocumentStats] = useState<{ count: number }>({ count: 0 })
 
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     setAuthChecked(true);
   }, []);
+  // Load document stats for header count
+  useEffect(() => {
+    const loadDocumentStats = async () => {
+      if (!token) return;
+      try {
+        const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/documents/stats`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = typeof data?.totalDocuments === 'number' ? data.totalDocuments : (typeof data?.count === 'number' ? data.count : 0);
+        setDocumentStats({ count });
+      } catch (e) {
+        // Ignore failures; keep 0
+      }
+    };
+    loadDocumentStats();
+  }, [token]);
 
   // Defer rendering until auth check; ensure hooks above are always called
 
@@ -211,7 +234,7 @@ export default function AdminSearchPage() {
   const handleSelectOrganization = async (orgId: string) => {
     try {
       if (!token) {
-        alert('You must be logged in to switch organizations.');
+        toast.error('You must be logged in to switch organizations.');
         return;
       }
       const resp = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/auth/multi-role/switch-organization`, {
@@ -230,15 +253,16 @@ export default function AdminSearchPage() {
       if (data.token && data.user) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Reload to ensure all pages pick up new org context
-        window.location.reload();
+        // Navigate to Organizations and reload so AuthContext picks up new token
+        window.location.href = '/admin/organizations';
       } else {
-        // Fallback: just refresh organizations
+        // Fallback: refresh and navigate
         await fetchAccessibleOrgsAfterSwitch();
+        window.location.href = '/admin/organizations';
       }
     } catch (error) {
       console.error('Error switching organization:', error);
-      alert((error as Error).message || 'Failed to switch organization');
+      toast.error((error as Error).message || 'Failed to switch organization');
     }
   };
 
@@ -296,47 +320,57 @@ export default function AdminSearchPage() {
         }
       });
 
-      // Update the token in localStorage
+      // Update the token in localStorage and navigate to Organizations
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
-        // Note: User context will be updated on next page refresh or we could trigger a refresh
-        window.location.reload();
+        window.location.href = '/admin/organizations';
       }
       
-      alert(`Successfully joined ${orgName}!`);
+      toast.success(`Successfully joined ${orgName}!`);
     } catch (error) {
       console.error('❌ Error joining organization:', error);
-      alert('Failed to join organization. Please try again.');
+      toast.error('Failed to join organization. Please try again.');
     }
   };
 
   const handleCreateOrganization = async () => {
     if (!newOrgName.trim()) {
-      alert('Please enter an organization name');
+      toast.error('Please enter an organization name');
       return;
     }
 
     setIsCreatingOrg(true);
     try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3002'}/api/org/create-new`, {
-        orgName: newOrgName.trim()
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      const response = await fetch(API_ENDPOINTS.ORGANIZATIONS_CREATE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ orgName: newOrgName.trim() })
       });
 
-      // Update the token in localStorage
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        // Note: User context will be updated on next page refresh or we could trigger a refresh
-        window.location.reload();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create organization');
+      }
+
+      const data = await response.json();
+      
+      // Update the user context with the new auth response
+      if (data.token && data.user) {
+        await updateUser(data.token, data.user);
       }
       
-      alert(`Organization ${newOrgName} created successfully!`);
+      toast.success(`Organization ${newOrgName} created successfully!`);
       setNewOrgName('');
+      
+      // Refresh the user organizations list
+      await loadUserOrganizations();
     } catch (error: unknown) {
       console.error('❌ Error creating organization:', error);
-      const errorMessage = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to create organization';
-      alert(errorMessage);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create organization';
+      toast.error(errorMessage);
     } finally {
       setIsCreatingOrg(false);
     }

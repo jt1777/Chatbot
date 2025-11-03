@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'react-toastify'
 import { 
   DocumentTextIcon, 
   PlusIcon, 
@@ -58,7 +59,7 @@ export default function AdminDocumentManagement({
         setShowUpload(false)
       } catch (error) {
         console.error('File upload failed:', error)
-        alert('File upload failed. Please try again.')
+        toast.error('File upload failed. Please try again.')
       }
     }
   }
@@ -82,7 +83,7 @@ export default function AdminDocumentManagement({
         setShowWebScrape(false)
       } catch (error) {
         console.error('Web scraping failed:', error)
-        alert('Web scraping failed. Please try again.')
+        toast.error('Web scraping failed. Please try again.')
       }
     }
   }
@@ -112,7 +113,7 @@ export default function AdminDocumentManagement({
       setShowDeleteMode(false)
     } catch (error) {
       console.error('Delete selected failed:', error)
-      alert('Delete failed. Please try again.')
+      toast.error('Delete failed. Please try again.')
     }
   }
 

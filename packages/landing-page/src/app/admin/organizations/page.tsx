@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import AdminHeader from '@/components/AdminHeader'
 import { useAuth } from '@/contexts/AuthContext'
 import { API_ENDPOINTS } from '@/config/api'
+import { toast } from 'react-toastify'
 import axios from 'axios'
 
 interface User {
@@ -64,7 +65,7 @@ export default function AdminOrganizationsPage() {
   const [isSwitchingOrg, setIsSwitchingOrg] = useState(false)
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false)
   const [isPublic, setIsPublic] = useState(false)
-  const [documentStats] = useState({ count: 24 })
+  const [documentStats, setDocumentStats] = useState<{ count: number }>({ count: 0 })
 
   // Load organization info on component mount
   useEffect(() => {
@@ -73,9 +74,29 @@ export default function AdminOrganizationsPage() {
     }
   }, [user, token]);
 
+  // Load document stats for header count
+  useEffect(() => {
+    const loadDocumentStats = async () => {
+      if (!token) return;
+      try {
+        const resp = await fetch(API_ENDPOINTS.DOCUMENTS_STATS, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const count = typeof data?.totalDocuments === 'number' ? data.totalDocuments : (typeof data?.count === 'number' ? data.count : 0);
+        setDocumentStats({ count });
+      } catch (_) {}
+    };
+    loadDocumentStats();
+  }, [token]);
+
   const loadOrganizationInfo = async () => {
     try {
-      // Prefer backend truth for visibility to avoid stale local state
+      // Prefer backend truth for visibility and description to avoid stale local state
       const resp = await fetch(API_ENDPOINTS.ORGANIZATIONS_INFO, {
         headers: {
           'Content-Type': 'application/json',
@@ -86,8 +107,11 @@ export default function AdminOrganizationsPage() {
         const data = await resp.json();
         if (typeof data.isPublic === 'boolean') {
           setIsPublic(data.isPublic);
-          return;
         }
+        if (typeof data.description === 'string') {
+          setOrgDescription(data.description);
+        }
+        return;
       }
       // Fallback to cached user in case backend call fails
       if (user?.accessibleOrgs && user.currentOrgId) {
@@ -123,19 +147,38 @@ export default function AdminOrganizationsPage() {
 
   const handleCreateInvite = async () => {
     if (!inviteEmail.trim()) {
-      alert('Please enter an email address')
+      toast.error('Please enter an email address')
       return
     }
 
     setIsCreatingInvite(true)
     try {
-      // TODO: Implement invite creation API call
-      console.log('Creating invite:', { email: inviteEmail, role: inviteRole })
-      alert('Invite created successfully!')
+      const response = await fetch(API_ENDPOINTS.ORGANIZATIONS_INVITE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          email: inviteEmail.trim(), 
+          role: inviteRole 
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create invite');
+      }
+
+      const data = await response.json();
+      
+      // Show success message with invite code
+      toast.success(`Invite created successfully! Invite code: ${data.inviteCode}. Share this code with ${inviteEmail} so they can register and join your organization.`);
       setInviteEmail('')
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Create invite error:', error)
-      alert('Failed to create invite. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create invite. Please try again.'
+      toast.error(errorMessage)
     } finally {
       setIsCreatingInvite(false)
     }
@@ -150,14 +193,28 @@ export default function AdminOrganizationsPage() {
 
     setIsUpdatingDescription(true)
     try {
-      // TODO: Implement description update API call
-      console.log('Updating description:', orgDescription)
-      alert('Description updated successfully!')
-    } catch (error) {
-      console.error('Update description error:', error)
-      alert('Failed to update description. Please try again.')
+      const response = await fetch(API_ENDPOINTS.ORGANIZATIONS_DESCRIPTION, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ orgDescription })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update organization description');
+      }
+
+      // Reload organization info to get updated data
+      await loadOrganizationInfo();
+      toast.success('Description updated successfully!');
+    } catch (error: any) {
+      console.error('Update description error:', error);
+      toast.error(`Failed to update description: ${error.message}`);
     } finally {
-      setIsUpdatingDescription(false)
+      setIsUpdatingDescription(false);
     }
   }
 
@@ -166,10 +223,10 @@ export default function AdminOrganizationsPage() {
     try {
       // TODO: Implement organization switching API call
       console.log('Switching to organization:', orgId)
-      alert('Organization switched successfully!')
+      toast.success('Organization switched successfully!')
     } catch (error) {
       console.error('Switch organization error:', error)
-      alert('Failed to switch organization. Please try again.')
+      toast.error('Failed to switch organization. Please try again.')
     } finally {
       setIsSwitchingOrg(false)
     }
@@ -201,10 +258,10 @@ export default function AdminOrganizationsPage() {
       setIsPublic(newVisibility);
       
       // Show success message
-      alert(`Organization is now ${newVisibility ? 'public' : 'private'}`);
+      toast.success(`Organization is now ${newVisibility ? 'public' : 'private'}`);
     } catch (error: any) {
       console.error('Toggle visibility error:', error);
-      alert(`Failed to update visibility: ${error.message}`);
+      toast.error(`Failed to update visibility: ${error.message}`);
     } finally {
       setIsUpdatingVisibility(false);
     }

@@ -19,11 +19,12 @@ export const API_ENDPOINTS = {
   
   // Organization endpoints
   ORGANIZATIONS: `${API_BASE_URL}/api/organizations`,
-  ORGANIZATIONS_CREATE: `${API_BASE_URL}/api/organizations/create`,
+  ORGANIZATIONS_CREATE: `${API_BASE_URL}/api/org/create-new`,
   ORGANIZATIONS_JOIN: `${API_BASE_URL}/api/organizations/join`,
-  ORGANIZATIONS_INVITE: `${API_BASE_URL}/api/organizations/invite`,
+  ORGANIZATIONS_INVITE: `${API_BASE_URL}/api/org/invite`,
   ORGANIZATIONS_VISIBILITY: `${API_BASE_URL}/api/org/visibility`,
   ORGANIZATIONS_INFO: `${API_BASE_URL}/api/org/info`,
+  ORGANIZATIONS_DESCRIPTION: `${API_BASE_URL}/api/org/description`,
   
   // Chat endpoints
   CHAT: `${API_BASE_URL}/api/chat`,
